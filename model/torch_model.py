@@ -1,13 +1,11 @@
 import torch.utils.data
 
-from torch_utils import *
+from utils.utils import *
 import time
-from torch_network import *
-from torch.utils.tensorboard import SummaryWriter
+from network.torch_network import *
+# from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from functools import partial
 
-print = partial(print, flush=True)
 
 def run_fn(rank, args, world_size):
     device = torch.device('cuda', rank)
@@ -16,6 +14,7 @@ def run_fn(rank, args, world_size):
     model = DeepNetwork(args, world_size)
     model.build_model(rank, device)
     model.train_model(rank, device)
+
 
 class DeepNetwork():
     def __init__(self, args, NUM_GPUS):
@@ -66,10 +65,10 @@ class DeepNetwork():
         dataset = ImageDataset(dataset_path=self.dataset_path, img_size=self.img_size)
         self.dataset_num = dataset.__len__()
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, num_workers=4,
-                                             sampler=distributed_sampler(dataset, rank=rank, num_replicas=self.NUM_GPUS, shuffle=True),
+                                             sampler=distributed_sampler(dataset, rank=rank, num_replicas=self.NUM_GPUS,
+                                                                         shuffle=True),
                                              drop_last=True, pin_memory=True)
         self.dataset_iter = infinite_iterator(loader)
-
 
         """ Network """
         self.network = NetModel(input_shape=self.img_size, feature_size=self.feature_size).to(device)
@@ -121,7 +120,7 @@ class DeepNetwork():
         fid_start_time = time.time()
 
         # setup tensorboards
-        train_summary_writer = SummaryWriter(self.log_dir)
+        # train_summary_writer = SummaryWriter(self.log_dir)
 
         # start training
         if rank == 0:
@@ -138,7 +137,6 @@ class DeepNetwork():
             print()
 
         losses = {'loss': 0.0}
-
 
         for idx in range(self.start_iteration, self.iteration):
             iter_start_time = time.time()
@@ -161,7 +159,6 @@ class DeepNetwork():
             if rank == 0:
                 for k, v in losses.items():
                     train_summary_writer.add_scalar(k, v, global_step=idx)
-
 
                 elapsed = time.time() - iter_start_time
                 print(self.log_template.format(idx, self.iteration, elapsed, losses['loss']))
