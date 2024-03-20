@@ -2,12 +2,12 @@
 ###  Deep learning project template with pytorch
 
 + WIP
- -[ ] utils
-   - [ ] datalodaer
-   - [ ] utils
- -[ ] network
- -[ ] model
- -[ ] main
+  + utils
+    - [ ] datalodaer
+    - [ ] utils
+-[ ] network
+-[ ] model
+-[ ] main
 
 ---
 <div align="center">

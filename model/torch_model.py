@@ -7,17 +7,15 @@ from network.torch_network import *
 import numpy as np
 
 
-def run_fn(rank, args, world_size):
-    device = torch.device('cuda', rank)
-    torch.backends.cudnn.benchmark = True
-
-    model = DeepNetwork(args, world_size)
-    model.build_model(rank, device)
-    model.train_model(rank, device)
+def run_fn(args):
+    device = check_device()
+    model = DeepNetwork(args)
+    model.build_model(device)
+    model.train_model(device)
 
 
 class DeepNetwork():
-    def __init__(self, args, NUM_GPUS):
+    def __init__(self, args):
         super(DeepNetwork, self).__init__()
         self.model_name = 'DeepNetwork'
         self.checkpoint_dir = args['checkpoint_dir']
@@ -25,8 +23,6 @@ class DeepNetwork():
         self.log_dir = args['log_dir']
         self.sample_dir = args['sample_dir']
         self.dataset_name = args['dataset']
-
-        self.NUM_GPUS = NUM_GPUS
 
         """ Network parameters """
         self.feature_size = args['feature_size']
@@ -36,7 +32,8 @@ class DeepNetwork():
         self.iteration = args['iteration']
         self.img_size = args['img_size']
         self.batch_size = args['batch_size']
-        self.global_batch_size = self.batch_size * self.NUM_GPUS
+        # FIX global_batch_size
+        self.global_batch_size = self.batch_size
 
         """ Misc """
         self.save_freq = args['save_freq']
@@ -57,18 +54,11 @@ class DeepNetwork():
     ##################################################################################
     # Model
     ##################################################################################
-    def build_model(self, rank, device):
-        """ Init process """
-        build_init_procss(rank, world_size=self.NUM_GPUS, device=device)
-
+    def build_model(self, device):
         """ Dataset Load """
         dataset = ImageDataset(dataset_path=self.dataset_path, img_size=self.img_size)
         self.dataset_num = dataset.__len__()
-        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, num_workers=4,
-                                             sampler=distributed_sampler(dataset, rank=rank, num_replicas=self.NUM_GPUS,
-                                                                         shuffle=True),
-                                             drop_last=True, pin_memory=True)
-        self.dataset_iter = infinite_iterator(loader)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, num_workers=1, shuffle=True)
 
         """ Network """
         self.network = NetModel(input_shape=self.img_size, feature_size=self.feature_size).to(device)
@@ -76,17 +66,13 @@ class DeepNetwork():
         """ Optimizer """
         self.optim = torch.optim.Adam(self.network.parameters(), lr=self.lr)
 
-        """ Distributed Learning """
-        self.network = dataparallel_and_sync(self.network, rank)
-
         """ Checkpoint """
         latest_ckpt_name, start_iter = find_latest_ckpt(self.checkpoint_dir)
 
         if latest_ckpt_name is not None:
-            if rank == 0:
-                # "rank == 0" means a first gpu.
-                print('Latest checkpoint restored!! ', latest_ckpt_name)
-                print('start iteration : ', start_iter)
+            # "rank == 0" means a first gpu.
+            print('Latest checkpoint restored!! ', latest_ckpt_name)
+            print('start iteration : ', start_iter)
             self.start_iteration = start_iter
 
             latest_ckpt = os.path.join(self.checkpoint_dir, latest_ckpt_name)
@@ -94,11 +80,6 @@ class DeepNetwork():
 
             self.network.load_state_dict(ckpt["network"])
             self.optim.load_state_dict(ckpt["optim"])
-
-        else:
-            if rank == 0:
-                print('Not restoring from saved checkpoint')
-            self.start_iteration = 0
 
     def train_step(self, real_images, label, device=torch.device('cuda')):
         # gradient check
@@ -115,7 +96,7 @@ class DeepNetwork():
 
         return loss
 
-    def train_model(self, rank, device):
+    def train_model(self, device):
         start_time = time.time()
         fid_start_time = time.time()
 
@@ -123,58 +104,43 @@ class DeepNetwork():
         # train_summary_writer = SummaryWriter(self.log_dir)
 
         # start training
-        if rank == 0:
-            print()
-            print(self.dataset_path)
-            print("Dataset number : ", self.dataset_num)
-            print("GPUs : ", self.NUM_GPUS)
-            print("Each batch size : ", self.batch_size)
-            print("Global batch size : ", self.global_batch_size)
-            print("Target image size : ", self.img_size)
-            print("Save frequency : ", self.save_freq)
-            print("PyTorch Version :", torch.__version__)
-            print('max_steps: {}'.format(self.iteration))
-            print()
+        print()
+        print(self.dataset_path)
+        print("Dataset number : ", self.dataset_num)
+        print("Each batch size : ", self.batch_size)
+        print("Global batch size : ", self.global_batch_size)
+        print("Target image size : ", self.img_size)
+        # print("Save frequency : ", self.save_freq)
+        print("PyTorch Version :", torch.__version__)
+        print('max_steps: {}'.format(self.iteration))
+        print()
 
         losses = {'loss': 0.0}
 
         for idx in range(self.start_iteration, self.iteration):
-            iter_start_time = time.time()
+
+            # will add train time
 
             real_img, label = next(self.dataset_iter)
             real_img = real_img.to(device)
             label = label.to(device)
 
             if idx == 0:
-                if rank == 0:
-                    print("count params")
-                    n_params = count_parameters(self.network)
-                    print("network parameters : ", format(n_params, ','))
+                print("count params")
+                n_params = count_parameters(self.network)
+                print("network parameters : ", format(n_params, ','))
 
             loss = self.train_step(real_img, label, device=device)
             losses['loss'] = loss
 
-            losses = reduce_loss_dict(losses)
+            # reduce loss
+            losses = reduce_loss(losses)
 
-            if rank == 0:
-                for k, v in losses.items():
-                    train_summary_writer.add_scalar(k, v, global_step=idx)
+            # write train result on summary
 
-                elapsed = time.time() - iter_start_time
-                print(self.log_template.format(idx, self.iteration, elapsed, losses['loss']))
-
-                if np.mod(idx, self.save_freq) == 0 or idx == self.iteration - 1:
-                    if rank == 0:
-                        self.torch_save(idx)
-
-            dist.barrier()
-
-        if rank == 0:
-            # save model for final step
-            self.torch_save(self.iteration)
-            print("Total train time: %4.4f" % (time.time() - start_time))
-
-        dist.barrier()
+        # save model for final step
+        self.torch_save(self.iteration)
+        # print("Total train time: %4.4f" % (time.time() - start_time))
 
     def torch_save(self, idx):
         torch.save(

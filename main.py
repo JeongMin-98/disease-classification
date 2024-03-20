@@ -1,6 +1,7 @@
-from torch_model import run_fn
+from model.torch_model import run_fn
 import argparse
-from torch_utils import *
+from utils.utils import *
+
 
 def parse_args():
     desc = "Pytorch implementation of DeepNetwork"
@@ -8,16 +9,12 @@ def parse_args():
 
     # training
     parser.add_argument('--phase', type=str, default='train', help='train or test')
-    parser.add_argument('--iteration', type=int, default=200000)
+    parser.add_argument('--iteration', type=int, default=1000)
     parser.add_argument('--img_size', type=int, default=256, help='The size of image')
     parser.add_argument('--batch_size', type=int, default=4, help='The size of batch size')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
 
     # network settings
-    parser.add_argument('--feature_size', type=int, default=64, help='initial feature dimensions')
-
-    # misc
-    parser.add_argument('--save_freq', type=int, default=10000, help='The number of ckpt_save_freq')
 
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoint',
                         help='Directory name to save the checkpoints')
@@ -32,6 +29,8 @@ def parse_args():
 
 
 """checking arguments"""
+
+
 def check_args(args):
     # --checkpoint_dir
     check_folder(args.checkpoint_dir)
@@ -53,13 +52,15 @@ def check_args(args):
 
     return args
 
-"""main"""
-def main():
 
+"""main"""
+
+
+def main():
     args = vars(parse_args())
 
     # run
-    multi_gpu_run(ddp_fn=run_fn, args=args)
+    run_fn(args=args)
 
 
 if __name__ == '__main__':

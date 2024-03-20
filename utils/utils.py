@@ -47,15 +47,30 @@ class ImageDataset(Dataset):
 
 def check_device():
     if torch.cuda.is_available():
-        return 'cuda'
+        return torch.device('cuda')
     else:
-        return 'cpu'
+        return torch.device('cpu')
 
 
 def check_folder(log_dir):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     return log_dir
+
+
+def find_latest_ckpt(folder):
+    """ find latest checkpoint """
+    files = []
+    for fname in os.listdir(folder):
+        s = re.findall(r'\d+', fname)
+        if len(s) == 1:
+            files.append((int(s[0]), fname))
+    if files:
+        file_name = max(files)[1]
+        index = os.path.splitext(file_name)[0]
+        return file_name, index
+    else:
+        return None, 0
 
 
 def requires_grad(model, flag=True):
@@ -77,6 +92,11 @@ def cross_entroy_loss(logit, label):
     loss = torch.nn.CrossEntropyLoss()(logit, label)
     return loss
 
+
+def reduce_loss(tmp):
+    """ will implement reduce_loss func """
+    loss = tmp
+    return loss
 # def reduce_loss_dict(loss_dict):
 #     world_size = get_world_size()
 #
