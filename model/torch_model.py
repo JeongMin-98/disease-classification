@@ -3,7 +3,8 @@ import torch.utils.data
 from utils.utils import *
 import time
 from network.torch_network import *
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
 import numpy as np
 
 
@@ -12,6 +13,17 @@ def run_fn(args):
     model = DeepNetwork(args)
     model.build_model(device)
     model.train_model(device)
+
+
+def run_test_template_arch(args):
+    device = check_device()
+    model = DeepNetwork(args)
+    model.build_model(device)
+
+    test_torch = torch.randn(3, 224, 224).unsqueeze(0).to(device)
+    summary(model.network, (3, 224, 224), device="cuda")
+
+    model.test_for_template_arch(test_torch)
 
 
 class DeepNetwork():
@@ -36,7 +48,7 @@ class DeepNetwork():
         self.global_batch_size = self.batch_size
 
         """ Misc """
-        self.save_freq = args['save_freq']
+        # self.save_freq = args['save_freq']
         self.log_template = 'step [{}/{}]: elapsed: {:.2f}s, loss: {:.3f}'
 
         """ Directory """
@@ -97,11 +109,8 @@ class DeepNetwork():
         return loss
 
     def train_model(self, device):
-        start_time = time.time()
-        fid_start_time = time.time()
-
-        # setup tensorboards
-        # train_summary_writer = SummaryWriter(self.log_dir)
+        # setup tensorboard
+        train_summary_writer = SummaryWriter(self.log_dir)
 
         # start training
         print()
@@ -150,6 +159,12 @@ class DeepNetwork():
             },
             os.path.join(self.checkpoint_dir, 'iter_{}.pt'.format(idx))
         )
+
+    def test_for_template_arch(self, data):
+        result = self.network.forward(data)
+
+        print("test for template arch :")
+        print(result)
 
     @property
     def model_dir(self):
