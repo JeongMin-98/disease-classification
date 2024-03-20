@@ -25,6 +25,8 @@ def run_test_template_arch(args):
 
     model.test_for_template_arch(test_torch)
 
+    model.train_model(device)
+
 
 class DeepNetwork():
     def __init__(self, args):
@@ -70,7 +72,8 @@ class DeepNetwork():
         """ Dataset Load """
         dataset = ImageDataset(dataset_path=self.dataset_path, img_size=self.img_size)
         self.dataset_num = dataset.__len__()
-        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, num_workers=1, shuffle=True)
+        self.loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, num_workers=1, shuffle=True)
+        # self.dataset_iter = iter(loader)
 
         """ Network """
         self.network = NetModel(input_shape=self.img_size, feature_size=self.feature_size).to(device)
@@ -92,6 +95,8 @@ class DeepNetwork():
 
             self.network.load_state_dict(ckpt["network"])
             self.optim.load_state_dict(ckpt["optim"])
+        else:
+            self.start_iteration = 0
 
     def train_step(self, real_images, label, device=torch.device('cuda')):
         # gradient check
@@ -129,7 +134,8 @@ class DeepNetwork():
         for idx in range(self.start_iteration, self.iteration):
 
             # will add train time
-
+            if idx % self.dataset_num == 0:
+                self.dataset_iter = iter(self.loader)
             real_img, label = next(self.dataset_iter)
             real_img = real_img.to(device)
             label = label.to(device)

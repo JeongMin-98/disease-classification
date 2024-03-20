@@ -11,7 +11,7 @@ def parse_args():
     parser.add_argument('--test_arch', type=int, default=0,
                         help='if you test torch template architecture, give 1 (Or 0)')
 
-    parser.add_argument('--dataset', type=str, default='cifar10', help="The name of the dataset")
+    parser.add_argument('--dataset', type=str, default='test', help="The name of the dataset")
     # training
     parser.add_argument('--phase', type=str, default='train', help='train or test')
     parser.add_argument('--iteration', type=int, default=1000)
