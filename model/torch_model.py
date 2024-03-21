@@ -51,7 +51,7 @@ class DeepNetwork():
 
         """ Misc """
         # self.save_freq = args['save_freq']
-        self.log_template = 'step [{}/{}]: elapsed: {:.2f}s, loss: {:.3f}'
+        self.log_template = 'step [{}/{}]: loss: {:.3f}'
 
         """ Directory """
         self.sample_dir = os.path.join(self.sample_dir, self.model_dir)
@@ -73,7 +73,7 @@ class DeepNetwork():
         dataset = ImageDataset(dataset_path=self.dataset_path, img_size=self.img_size)
         self.dataset_num = dataset.__len__()
         self.loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, num_workers=1, shuffle=True)
-        # self.dataset_iter = iter(loader)
+        self.dataset_iter = iter(self.loader)
 
         """ Network """
         self.network = NetModel(input_shape=self.img_size, feature_size=self.feature_size).to(device)
@@ -131,6 +131,9 @@ class DeepNetwork():
 
         losses = {'loss': 0.0}
 
+        print("=======================================")
+        print("Phase : training")
+
         for idx in range(self.start_iteration, self.iteration):
 
             # will add train time
@@ -151,13 +154,18 @@ class DeepNetwork():
             # reduce loss
             losses = reduce_loss(losses)
 
-            # write train result on summary
+            print(self.log_template.format(idx + 1, self.iteration, loss))
 
+            # write train result on summary
+        print("=======================================")
         # save model for final step
         self.torch_save(self.iteration)
         # print("Total train time: %4.4f" % (time.time() - start_time))
 
     def torch_save(self, idx):
+        print()
+        print("Saving model")
+        print("path" + os.path.join(self.checkpoint_dir, "iter_{}.pt".format(idx)))
         torch.save(
             {
                 'network': self.network.state_dict(),

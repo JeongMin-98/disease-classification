@@ -7,11 +7,16 @@ def parse_args():
     desc = "Pytorch implementation of DeepNetwork"
     parser = argparse.ArgumentParser(description=desc)
 
+    # dataset
+    parser.add_argument('--dataset', type=str, default='test', help="The name of the dataset")
+
     # training
+    # => Plan : To make config loader
     parser.add_argument('--phase', type=str, default='train', help='train or test')
-    parser.add_argument('--iteration', type=int, default=1000)
-    parser.add_argument('--img_size', type=int, default=256, help='The size of image')
-    parser.add_argument('--batch_size', type=int, default=4, help='The size of batch size')
+    parser.add_argument('--iteration', type=int, default=25)
+    parser.add_argument('--img_size', type=int, default=224, help='The size of image')
+    parser.add_argument('--batch_size', type=int, default=1, help='The size of batch size')
+    parser.add_argument('--feature_size', type=int, default=64, help='The size of feature size')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
 
     # network settings

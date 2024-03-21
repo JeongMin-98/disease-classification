@@ -1,4 +1,5 @@
 import torch
+import pandas as pd
 from torchvision import transforms
 from torch.utils.data import Dataset
 from PIL import Image
@@ -9,23 +10,27 @@ from torch.nn.parallel import DistributedDataParallel
 import torch.multiprocessing as torch_multiprocessing
 
 
+def data_transform(img_size):
+    transform_list = [
+        transforms.Resize(size=[img_size, img_size]),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.ToTensor(),  # [0, 255] -> [0, 1]
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True),  # [0, 1] -> [-1, 1]
+    ]
+    return transforms.Compose(transform_list)
+
+
 class ImageDataset(Dataset):
     def __init__(self, img_size, dataset_path):
         self.train_images = self.listdir(dataset_path)
-        self.train_labels = []  # make label
+        self.train_labels = list(pd.read_csv(dataset_path + '/annotations.csv', header=None).iloc[:, 1])
 
         # interpolation=transforms.InterpolationMode.BICUBIC, antialias=True
-        transform_list = [
-            transforms.Resize(size=[img_size, img_size]),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.ToTensor(),  # [0, 255] -> [0, 1]
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True),  # [0, 1] -> [-1, 1]
-        ]
 
-        self.transform = transforms.Compose(transform_list)
+        self.transform = data_transform(img_size)
 
     def listdir(self, dir_path):
-        extensions = ['png', 'jpg', 'jpeg', 'JPG']
+        extensions = ['png', 'jpg']
         file_path = []
         for ext in extensions:
             file_path += glob(os.path.join(dir_path, '*.' + ext))
@@ -37,6 +42,7 @@ class ImageDataset(Dataset):
         img = Image.open(sample_path).convert('RGB')
         img = self.transform(img)
 
+        # 여기서 문제
         label = self.train_labels[index]
 
         return img, label
@@ -66,9 +72,10 @@ def find_latest_ckpt(folder):
         if len(s) == 1:
             files.append((int(s[0]), fname))
     if files:
-        file_name = max(files)[1]
-        index = os.path.splitext(file_name)[0]
-        return file_name, index
+        file = max(files)[1]
+        file_name = os.path.splitext(file)[0]
+        previous_iter = int(file_name.split("_")[1])
+        return file, previous_iter
     else:
         return None, 0
 
