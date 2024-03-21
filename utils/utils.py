@@ -1,6 +1,8 @@
 import torch
 import os, re
 
+""" Check Device and Path for saving and loading """
+
 
 def check_device():
     if torch.cuda.is_available():
@@ -29,6 +31,9 @@ def find_latest_ckpt(folder):
         return file, previous_iter
     else:
         return None, 0
+
+
+""" Training Tool for model """
 
 
 def requires_grad(model, flag=True):
@@ -61,6 +66,8 @@ def reduce_loss(tmp):
     """ will implement reduce_loss func """
     loss = tmp
     return loss
+
+
 # def reduce_loss_dict(loss_dict):
 #     world_size = get_world_size()
 #
@@ -84,3 +91,40 @@ def reduce_loss(tmp):
 #         reduced_losses = {k: v.mean().item() for k, v in zip(keys, losses)}
 #
 #     return reduced_losses
+
+""" Tool to set for model by loading config files """
+
+
+def read_config(config_path):
+    """ read config file """
+    file = open(config_path, 'r')
+    lines = file.read().split('\n')
+    lines = [x for x in lines if x and not x.startswith('#')]
+    lines = [x.rstrip().lstrip() for x in lines]
+
+    return lines
+
+
+def parse_model_config(config_path):
+    """ Parse your model of configuration files and set module defines"""
+    lines = read_config(config_path)
+    module_configs = []
+
+    for line in lines:
+        if line.startswith('['):
+            layer_name = line[1:-1].rstrip()
+            if layer_name == "net":
+                continue
+            module_configs.append({})
+            module_configs[-1]['type'] = layer_name
+
+            if module_configs[-1]['type'] == 'convolutional':
+                module_configs[-1]['batch_normalize'] = 0
+        else:
+            if layer_name == "net":
+                continue
+            key, value = line.split("=")
+            value = value.strip()
+            module_configs[-1][key.rstrip()] = value.strip()
+
+    return module_configs

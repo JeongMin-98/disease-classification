@@ -2,7 +2,7 @@ import torch.utils.data
 
 from utils.dataLoader import ImageDataset
 from utils.utils import *
-from network.torch_network import *
+from network.exampleNet import *
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 
