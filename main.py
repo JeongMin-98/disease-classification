@@ -12,6 +12,8 @@ def parse_args():
 
     # training
     # => Plan : To make config loader
+    parser.add_argument('--model', type=str, default='vggnet-19.cfg', help='The name of the model(config format)')
+
     parser.add_argument('--phase', type=str, default='train', help='train or test')
     parser.add_argument('--iteration', type=int, default=25)
     parser.add_argument('--img_size', type=int, default=224, help='The size of image')
