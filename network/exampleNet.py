@@ -1,4 +1,50 @@
 from torch import nn
+from torchvision.ops import MLP
+
+""" Neural Network template (Using config file) """
+
+
+def _add_mlp_block(block_info):
+    in_channel = int(block_info["in_channels"])
+    hidden_channels = block_info["hidden_channels"]
+    dropout_rate = float(block_info["dropout"])
+    activation = block_info["activation_layer"]
+    if activation == "ReLU":
+        activation = nn.ReLU
+    block = MLP(in_channels=in_channel, hidden_channels=hidden_channels, dropout=dropout_rate,
+                activation_layer=activation)
+    return block
+
+
+def set_layer(config):
+    """ set layer from config file """
+    module_list = nn.ModuleList()
+
+    # input shape
+
+    # iter config files
+    for idx, info in enumerate(config):
+        if info['type'] == 'MLP':
+            module_list.append(_add_mlp_block(info))
+        if info['type'] == 'Output':
+            module_list.append(nn.LogSoftmax(dim=1))
+
+    return module_list
+
+
+class Net(nn.Module):
+    def __init__(self, config, num_classes=10):
+        super().__init__()
+        self.config = config
+        self.num_classes = num_classes
+        self.layers = set_layer(self.config)
+
+    def forward(self, x):
+        print(self.layers)
+        x = x.view(x.size(0), -1)
+        for idx, layer in enumerate(self.layers):
+            x = layer(x)
+        return x
 
 
 class NetModel(nn.Module):
