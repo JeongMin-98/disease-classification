@@ -1,4 +1,5 @@
-from model.torch_model import run_fn
+# from model.torch_model import run_fn
+from model.exampleModel import run_fn
 import argparse
 from utils.utils import *
 
@@ -12,17 +13,17 @@ def parse_args():
 
     # training
     # => Plan : To make config loader
-    parser.add_argument('--model', type=str, default='vggnet-19.cfg', help='The name of the model(config format)')
+    # parser.add_argument('--model', type=str, default='vggnet-19.cfg', help='The name of the model(config format)')
 
     parser.add_argument('--phase', type=str, default='train', help='train or test')
-    parser.add_argument('--iteration', type=int, default=25)
-    parser.add_argument('--img_size', type=int, default=224, help='The size of image')
+    parser.add_argument('--iteration', type=int, default=1)
+    parser.add_argument('--img_size', type=int, default=28, help='The size of image')
     parser.add_argument('--batch_size', type=int, default=1, help='The size of batch size')
     parser.add_argument('--feature_size', type=int, default=64, help='The size of feature size')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
 
     # network settings
-
+    parser.add_argument('--config_dir', type=str, default='./cfg')
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoint',
                         help='Directory name to save the checkpoints')
     parser.add_argument('--result_dir', type=str, default='results',

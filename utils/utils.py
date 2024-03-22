@@ -128,7 +128,7 @@ def parse_model_config(config_path):
             key, value = line.split("=")
             value = value.strip()
             if value.startswith('['):
-                module_configs[-1][key.restrip()] = list(map(int, value[1:-1].rstrip().split(',')))
+                module_configs[-1][key.rstrip()] = list(map(int, value[1:-1].rstrip().split(',')))
             else:
                 module_configs[-1][key.rstrip()] = value.strip()
 
@@ -144,7 +144,7 @@ def show_img(img):
 
 if __name__ == '__main__':
     """ cfg loader test """
-    cfg = parse_model_config("../cfg/mnist.cfg")
+    cfg = parse_model_config("../cfg/myMnistNet/myMnistNet.cfg")
 
     t = cfg[0]['hidden_channels']
 
