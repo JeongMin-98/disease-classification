@@ -1,5 +1,7 @@
 import torch
 import os, re
+import numpy as np
+from PIL import Image
 
 """ Check Device and Path for saving and loading """
 
@@ -128,3 +130,10 @@ def parse_model_config(config_path):
             module_configs[-1][key.rstrip()] = value.strip()
 
     return module_configs
+
+
+def show_img(img):
+    """ Display an img"""
+    img = np.array(img, dtype=np.uint8)
+    img = Image.fromarray(img)
+    img.show()
