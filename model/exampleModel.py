@@ -19,7 +19,8 @@ def run_fn(args):
 
 class myMnistNet(DeepNetwork):
     def __init__(self, args):
-        super(DeepNetwork, self).__init__()
+        # deepNetwork의 인자 다 받기
+        super().__init__(args)
         self.model_name = "myMnistNet"  # will be able to custom model_name
         self.config_dir = args['config_dir']
 

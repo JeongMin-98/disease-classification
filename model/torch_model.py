@@ -29,7 +29,7 @@ def run_test_template_arch(args):
 
 class DeepNetwork():
     def __init__(self, args):
-        super(DeepNetwork, self).__init__()
+        # super(DeepNetwork, self).__init__()
         self.model_name = 'DeepNetwork'
         self.checkpoint_dir = args['checkpoint_dir']
         self.result_dir = args['result_dir']
