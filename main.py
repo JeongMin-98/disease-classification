@@ -22,6 +22,9 @@ def parse_args():
     parser.add_argument('--feature_size', type=int, default=64, help='The size of feature size')
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
 
+    # model name
+    parser.add_argument("--model_name", type=str, default='myMnistNet', help="The name of the model")
+
     # network settings
     parser.add_argument('--config_dir', type=str, default='./cfg')
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoint',
