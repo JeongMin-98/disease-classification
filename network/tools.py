@@ -10,23 +10,22 @@ def _add_mlp_block(block_info):
     activation = block_info["activation_layer"]
     if activation == "ReLU":
         activation = nn.ReLU
+    if activation == "tanh":
+        activation = nn.Tanh
     block = MLP(in_channels=in_channel, hidden_channels=hidden_channels, dropout=dropout_rate,
                 activation_layer=activation)
     return block
 
 
-def _add_conv_block(block_info, module):
+def _add_conv_block(block_info):
     in_channel = int(block_info["in_channels"])
     out_channel = int(block_info["out_channels"])
     kernel_size = int(block_info["kernel_size"])
     stride = int(block_info["stride"])
-    activation = block_info["activation_layer"]
-    if activation == "tanh":
-        activation = nn.Tanh
-    module.append(nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride))
-    module.append(activation)
-
-    return module
+    padding = 0
+    if "padding" in block_info:
+        padding = int(block_info["padding"])
+    return nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=0)
 
 
 def _add_pooling_layer(block_info):
@@ -48,7 +47,7 @@ def set_layer(config):
         if info['type'] == 'Output':
             module_list.append(nn.LogSoftmax(dim=1))
         if info['type'] == 'Conv':
-            module_list = _add_conv_block(info, module_list)
+            module_list.append(_add_conv_block(info))
         if info['type'] == 'Pool':
             module_list.append(_add_pooling_layer(info))
 
