@@ -1,6 +1,6 @@
 from model.torch_model import run_fn, run_test_template_arch
 import argparse
-from utils.utils import *
+from utils.tools import *
 
 
 def parse_args():

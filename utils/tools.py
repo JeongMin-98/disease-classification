@@ -2,6 +2,7 @@ import torch
 import os, re
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 
 """ Check Device and Path for saving and loading """
 
@@ -62,6 +63,12 @@ def count_parameters(model):
 def cross_entroy_loss(logit, label):
     loss = torch.nn.CrossEntropyLoss()(logit, label)
     return loss
+
+
+def accuracy(outputs, label):
+    """ if you want to make custom accuracy for your model, you need to implement this function."""
+    y = torch.argmax(outputs, dim=1)
+    return (y.eq(label).sum())
 
 
 def reduce_loss(tmp):
@@ -133,6 +140,19 @@ def parse_model_config(config_path):
                 module_configs[-1][key.rstrip()] = value.strip()
 
     return module_configs
+
+
+""" If you want visualize_inference to fit your model, you need to implement below func."""
+
+
+def visualize_inference(img, label, batch_size):
+    """ Visualize Image Batch"""
+    fig, axes = plt.subplots(1, batch_size, figsize=(10, 10))
+    for i in range(batch_size):
+        axes[i].imshow(np.squeeze(img[i]), cmap="gray")
+        axes[i].set_title(f"predicted: {label[i]}")
+        axes[i].axis('off')
+    plt.show()
 
 
 def show_img(img):

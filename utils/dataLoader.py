@@ -5,12 +5,14 @@ import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
+from torchvision.datasets import MNIST
+from utils.tools import check_folder
 
 
 class ImageDataset(Dataset):
     def __init__(self, img_size, dataset_path):
-        self.train_images = self.listdir(dataset_path)
-        self.train_labels = list(pd.read_csv(dataset_path + '/annotations.csv', header=None).iloc[:, 1])
+        self.images = self.listdir(dataset_path)
+        self.labels = list(pd.read_csv(dataset_path + '/annotations.csv', header=None).iloc[:, 1])
 
         # interpolation=transforms.InterpolationMode.BICUBIC, antialias=True
 
@@ -25,17 +27,15 @@ class ImageDataset(Dataset):
         return file_path
 
     def __getitem__(self, index):
-        sample_path = self.train_images[index]
+        sample_path = self.images[index]
         img = Image.open(sample_path).convert('RGB')
         img = self.transform(img)
-
-        # 여기서 문제
-        label = self.train_labels[index]
+        label = self.labels[index]
 
         return img, label
 
     def __len__(self):
-        return len(self.train_images)
+        return len(self.images)
 
 
 def data_transform(img_size):
@@ -46,3 +46,33 @@ def data_transform(img_size):
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True),  # [0, 1] -> [-1, 1]
     ]
     return transforms.Compose(transform_list)
+
+
+def mnist_transform():
+    transforms_list = [
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
+    ]
+    return transforms.Compose(transforms_list)
+
+
+def download_mnist_data(train=True):
+    download_path = os.path.join(os.getcwd(), 'dataset', 'mnist')
+    check_folder(download_path)
+
+    if train:
+        data = MNIST(
+            root=download_path,
+            train=True,
+            download=True,
+            transform=transforms.ToTensor()
+        )
+    else:
+        data = MNIST(
+            root=download_path,
+            train=False,
+            download=True,
+            transform=transforms.ToTensor()
+        )
+
+    return data
