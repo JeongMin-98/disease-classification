@@ -155,6 +155,7 @@ def visualize_inference(img, label, batch_size):
         axes[i].axis('off')
     plt.show()
 
+
 def visualize_feature_map(model, image):
     model.network.eval()
 
@@ -191,17 +192,6 @@ def show_img(img):
     img = np.array(img, dtype=np.uint8)
     img = Image.fromarray(img)
     img.show()
-
-
-
-if __name__ == '__main__':
-    """ cfg loader test """
-    cfg = parse_model_config("../cfg/myMnistNet/myMnistNet.cfg")
-
-    t = cfg[0]['hidden_channels']
-
-    t = list(map(int, t[1:-1].rstrip().split(',')))
-    print(t)
 
 
 def data_transform(img_size):
