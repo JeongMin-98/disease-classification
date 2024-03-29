@@ -2,6 +2,7 @@ import torch
 import os, re
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 
 """ Check Device and Path for saving and loading """
 
@@ -62,6 +63,12 @@ def count_parameters(model):
 def cross_entroy_loss(logit, label):
     loss = torch.nn.CrossEntropyLoss()(logit, label)
     return loss
+
+
+def accuracy(outputs, label):
+    """ if you want to make custom accuracy for your model, you need to implement this function."""
+    y = torch.argmax(outputs, dim=1)
+    return (y.eq(label).sum())
 
 
 def reduce_loss(tmp):
@@ -135,11 +142,55 @@ def parse_model_config(config_path):
     return module_configs
 
 
+""" If you want visualize_inference to fit your model, you need to implement below func."""
+
+
+def visualize_inference(img, label, batch_size):
+    """ Visualize Image Batch"""
+    fig, axes = plt.subplots(1, batch_size, figsize=(10, 10))
+    for i in range(batch_size):
+        axes[i].imshow(np.squeeze(img[i]), cmap="gray")
+        axes[i].set_title(f"predicted: {label[i]}")
+        axes[i].axis('off')
+    plt.show()
+
+def visualize_feature_map(model, image):
+    model.network.eval()
+
+    # transformer
+    # transform = mnist_transform()
+
+    feature_map = None
+
+    # input_tensor
+    input_tensor = image.to(check_device())
+
+    def hook(module, input, output):
+        nonlocal feature_map
+        feature_map = output.detach().cpu()
+
+    target_layer = model.network.layers[6]
+    hook_handle = target_layer.register_forward_hook(hook)
+
+    with torch.no_grad():
+        model.network(input_tensor)
+
+    hook_handle.remove()
+
+    plt.figure(figsize=(12, 8))
+    for i in range(feature_map.size(1)):
+        plt.subplot(4, 8, i + 1)
+        plt.imshow(feature_map[0, i], cmap='viridis')
+        plt.axis('off')
+    plt.show()
+
+
 def show_img(img):
     """ Display an img"""
     img = np.array(img, dtype=np.uint8)
     img = Image.fromarray(img)
     img.show()
+
 
 
 if __name__ == '__main__':
