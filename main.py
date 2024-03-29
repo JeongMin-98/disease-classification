@@ -1,4 +1,4 @@
-from model.torch_model import run_fn
+from model.model import run_fn
 import argparse
 from utils.tools import *
 
