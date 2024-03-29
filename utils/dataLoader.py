@@ -6,7 +6,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from torchvision.datasets import MNIST
-from utils.tools import check_folder
+from utils.tools import check_folder, data_transform
 
 
 class ImageDataset(Dataset):
@@ -36,24 +36,6 @@ class ImageDataset(Dataset):
 
     def __len__(self):
         return len(self.images)
-
-
-def data_transform(img_size):
-    transform_list = [
-        transforms.Resize(size=[img_size, img_size]),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.ToTensor(),  # [0, 255] -> [0, 1]
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True),  # [0, 1] -> [-1, 1]
-    ]
-    return transforms.Compose(transform_list)
-
-
-def mnist_transform():
-    transforms_list = [
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
-    ]
-    return transforms.Compose(transforms_list)
 
 
 def download_mnist_data(train=True):

@@ -3,6 +3,7 @@ import os, re
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from torchvision import transforms
 
 """ Check Device and Path for saving and loading """
 
@@ -201,3 +202,21 @@ if __name__ == '__main__':
 
     t = list(map(int, t[1:-1].rstrip().split(',')))
     print(t)
+
+
+def data_transform(img_size):
+    transform_list = [
+        transforms.Resize(size=[img_size, img_size]),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.ToTensor(),  # [0, 255] -> [0, 1]
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True),  # [0, 1] -> [-1, 1]
+    ]
+    return transforms.Compose(transform_list)
+
+
+def mnist_transform():
+    transforms_list = [
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
+    ]
+    return transforms.Compose(transforms_list)
