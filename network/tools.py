@@ -25,7 +25,7 @@ def _add_conv_block(block_info):
     padding = 0
     if "padding" in block_info:
         padding = int(block_info["padding"])
-    return nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=0)
+    return nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
 
 
 def _add_pooling_layer(block_info):
