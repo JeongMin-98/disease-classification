@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.dataLoader import ImageDataset
 from utils.tools import (check_folder, count_parameters, find_latest_ckpt, check_device,
                          cross_entroy_loss, requires_grad, apply_gradients,
-                         parse_model_config, accuracy, visualize_inference)
+                         parse_model_config, accuracy, visualize_inference, visualize_feature_map)
 from network.exampleNet import Net
 from torchsummary import summary
 
@@ -14,25 +14,28 @@ def run_fn(args):
     device = check_device()
     model = DeepNetwork(args)
     model.build_model(device)
-    model.train_model(device)
+
+    if args['phase'] == "train":
+        model.train_model(device)
+    if args['phase'] == "test":
+        model.test_model(device)
 
 
-def run_test_template_arch(args):
+def run_visualize_feature_map_func(args):
     device = check_device()
     model = DeepNetwork(args)
     model.build_model(device)
 
-    test_torch = torch.randn(3, 224, 224).unsqueeze(0).to(device)
-    summary(model.network, (3, 224, 224), device="cuda")
-
-    model.test_for_template_arch(test_torch)
-
-    model.train_model(device)
+    for idx, (img, label) in enumerate(model.train_loader):
+        visualize_feature_map(model, img)
+        if idx == 10:
+            break
 
 
 class DeepNetwork():
     def __init__(self, args):
         super(DeepNetwork, self).__init__()
+
         self.model_name = args['model_name']
         self.checkpoint_dir = args['checkpoint_dir']
         self.result_dir = args['result_dir']
@@ -75,6 +78,12 @@ class DeepNetwork():
         dataset_path = './dataset'
         self.dataset_path = os.path.join(dataset_path, self.dataset_name)
 
+        """ Data Loader Iter """
+        self.validation_set_iter = None
+        self.val_loader = None
+        self.train_loader = None
+        self.training_set_iter = None
+
     ##################################################################################
     # Model
     ##################################################################################
@@ -90,7 +99,7 @@ class DeepNetwork():
 
         """ Load dataset"""
         self.train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True)
-        self.trainning_set_iter = iter(self.train_loader)
+        self.training_set_iter = iter(self.train_loader)
 
         self.val_loader = DataLoader(val_data, batch_size=self.batch_size, shuffle=True)
         self.validation_set_iter = iter(self.val_loader)
@@ -134,7 +143,10 @@ class DeepNetwork():
         return loss
 
     def test_model(self, device, val_loader=None, valid=False):
-
+        """
+            This function is for testing classification
+            If you want other tasks of your model, you need to fix this function
+        """
         phase = "Test"
         if valid:
             phase = "Validation"
@@ -225,9 +237,9 @@ class DeepNetwork():
                     loss = 0
                     train_loss_list = []
 
-                self.trainning_set_iter = iter(self.train_loader)
+                self.training_set_iter = iter(self.train_loader)
 
-            real_img, label = next(self.trainning_set_iter)
+            real_img, label = next(self.training_set_iter)
             real_img = real_img.to(device)
             label = label.to(device)
 
