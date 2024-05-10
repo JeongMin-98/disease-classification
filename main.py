@@ -1,4 +1,4 @@
-from model.model import run_fn
+from model.model import run_fn, check_model_build, run_visualize_feature_map_func
 import argparse
 from utils.tools import *
 
@@ -73,6 +73,8 @@ def main():
 
     # run
     run_fn(args=args)
+    # check_model_build(args=args)
+    # run_visualize_feature_map_func(args)
 
 
 if __name__ == '__main__':

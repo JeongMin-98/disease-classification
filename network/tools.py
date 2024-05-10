@@ -1,36 +1,61 @@
 """ Tools for implementing neural networks """
 from torch import nn
+from torch.nn import Conv2d
 from torchvision.ops import MLP
 
 
 def _add_mlp_block(block_info):
-    in_channel = int(block_info["in_channels"])
-    hidden_channels = block_info["hidden_channels"]
-    dropout_rate = float(block_info["dropout"])
-    activation = block_info["activation_layer"]
-    if activation == "ReLU":
-        activation = nn.ReLU
-    if activation == "tanh":
-        activation = nn.Tanh
-    block = MLP(in_channels=in_channel, hidden_channels=hidden_channels, dropout=dropout_rate,
-                activation_layer=activation)
+    params = {
+        "in_channels": int(block_info["in_channels"]),
+        "hidden_channels": block_info["hidden_channels"],
+        "dropout": float(block_info["dropout"]) if float(block_info["dropout"]) > 0 else 0.0,
+        "activation_layer": nn.ReLU if block_info["activation_layer"] == "ReLU" else nn.Tanh
+    }
+    block = MLP(**params)
     return block
 
 
+def _add_linear(block_info):
+    params = {
+        'in_features': int(block_info["in_channels"]),
+        'out_features': int(block_info['out_channels'])
+    }
+    return nn.Linear(**params)
+
+
 def _add_conv_block(block_info):
-    in_channel = int(block_info["in_channels"])
-    out_channel = int(block_info["out_channels"])
-    kernel_size = int(block_info["kernel_size"])
-    stride = int(block_info["stride"])
-    padding = 0
-    if "padding" in block_info:
-        padding = int(block_info["padding"])
-    return nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
+    params = {
+        "in_channels": int(block_info["in_channels"]),
+        "out_channels": int(block_info["out_channels"]),
+        "kernel_size": int(block_info["kernel_size"]),
+        "stride": int(block_info["stride"]),
+        "padding": int(block_info.get("padding", 0)),  # Default padding is 0 if not specified
+    }
+
+    # if block_info["type"] == "ConvBlock":
+    #     return ConvBlock(**params)
+
+    return Conv2d(**params)
 
 
 def _add_pooling_layer(block_info):
-    kernel_size = int(block_info["kernel_size"])
-    return nn.AvgPool2d(kernel_size=kernel_size, stride=2)
+    if block_info["method"] == "AdaptAvg":
+        return nn.AdaptiveAvgPool2d((1, 1))
+    pooling_layer = nn.AvgPool2d if block_info["method"] == "average" else nn.MaxPool2d
+    params = {
+        "kernel_size": int(block_info["kernel_size"]),
+        "stride": int(block_info["stride"]),
+        "padding": int(block_info["padding"])
+    }
+
+    return pooling_layer(**params)
+
+
+def _add_dropout(block_info):
+    params = {
+        "p": float(block_info["dropout_ratio"])
+    }
+    return nn.Dropout(**params)
 
 
 def set_layer(config):
@@ -48,8 +73,12 @@ def set_layer(config):
             module_list.append(nn.LogSoftmax(dim=1))
         if info['type'] == 'Conv':
             module_list.append(_add_conv_block(info))
-        if info['type'] == 'Pool':
+        if info['type'] == 'Pooling':
             module_list.append(_add_pooling_layer(info))
+        if info['type'] == 'Flatten':
+            module_list.append(nn.Flatten())
+        if info['type'] == 'Linear':
+            module_list.append(_add_linear(info))
 
         if "activation" in info.keys():
             if info['activation'] == "relu":
