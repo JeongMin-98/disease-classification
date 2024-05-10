@@ -8,4 +8,4 @@
 
 ## Author
 + Jeongmin Kim
-+ reference by [Junho Kim](http://bit.ly/jhkim_resume)
++ The reference is from [Junho Kim](http://bit.ly/jhkim_resume)
