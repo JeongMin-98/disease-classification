@@ -1,75 +1,73 @@
-from model.model import run_fn, check_model_build, run_visualize_feature_map_func
+# --------------------------------------------------------
+# Reference from HRNet-Human-Pose-Estimation
+# refact code from old one.
+# Written by JeongMin Kim(jm.kim@dankook.ac.kr)
+# ----------------------------------------------------
+from torchinfo import summary
+
+from model.model import check_model_build, run_visualize_feature_map_func, DeepNetwork
 import argparse
+
+from config import cfg
+from config import update_config
+
 from utils.tools import *
+from utils.tools import check_device
 
 
 def parse_args():
     desc = "Pytorch implementation of DeepNetwork"
     parser = argparse.ArgumentParser(description=desc)
 
-    # dataset
-    parser.add_argument('--dataset', type=str, default='MNIST', help="The name of the dataset")
+    parser.add_argument('--cfg',
+                        help='experiment configure file name',
+                        required=True,
+                        type=str)
 
-    # training
-    # => Plan : To make config loader
-    # parser.add_argument('--model', type=str, default='vggnet-19.cfg', help='The name of the model(config format)')
+    parser.add_argument('opts',
+                        help="Modify config options using the command-line",
+                        default=None,
+                        nargs=argparse.REMAINDER)
 
-    parser.add_argument('--phase', type=str, default='train', help='train or test')
-    parser.add_argument('--iteration', type=int, default=10000)
-    parser.add_argument('--img_size', type=int, default=28, help='The size of image')
-    parser.add_argument('--batch_size', type=int, default=64, help='The size of batch size')
-    parser.add_argument('--feature_size', type=int, default=64, help='The size of feature size')
-    parser.add_argument('--train_size', type=int, default=0.8,
-                        help='The size of train_size (When splitting dataset into train and val sets)')
-    parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
+    parser.add_argument('--modelDir',
+                        help='model directory',
+                        type=str,
+                        default='')
+    parser.add_argument('--logDir',
+                        help='log directory',
+                        type=str,
+                        default='')
+    parser.add_argument('--dataDir',
+                        help='data directory',
+                        type=str,
+                        default='')
+    parser.add_argument('--prevModelDir',
+                        help='prev Model directory',
+                        type=str,
+                        default='')
 
-    # model name
-    parser.add_argument("--model_name", type=str, default='myMnistNet', help="The name of the model")
-
-    # network settings
-    parser.add_argument('--config_dir', type=str, default='./cfg')
-    parser.add_argument('--checkpoint_dir', type=str, default='checkpoint',
-                        help='Directory name to save the checkpoints')
-    parser.add_argument('--result_dir', type=str, default='results',
-                        help='Directory name to save the generated images')
-    parser.add_argument('--log_dir', type=str, default='logs',
-                        help='Directory name to save training logs')
-    parser.add_argument('--sample_dir', type=str, default='samples',
-                        help='Directory name to save the samples on training')
-
-    return check_args(parser.parse_args())
-
-
-"""checking arguments"""
-
-
-def check_args(args):
-    # --checkpoint_dir
-    check_folder(args.checkpoint_dir)
-
-    # --result_dir
-    check_folder(args.result_dir)
-
-    # --result_dir
-    check_folder(args.log_dir)
-
-    # --sample_dir
-    check_folder(args.sample_dir)
-
-    # --batch_size
-    try:
-        assert args.batch_size >= 1
-    except:
-        print('batch size must be larger than or equal to one')
+    args = parser.parse_args()
 
     return args
+
+
+def run_fn():
+    device = check_device()
+
+    # init model
+    model = eval('models.' + cfg.MODEL.NAME + '.py')(cfg, is_train=True)
+
 
 
 """main"""
 
 
 def main():
-    args = vars(parse_args())
+    args = parse_args()
+    update_config(cfg, args)
+
+    # logger
+    # create logger
 
     # run
     run_fn(args=args)

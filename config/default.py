@@ -18,6 +18,7 @@ _C.OUTPUT_DIR = ''
 _C.LOG_DIR = ''
 _C.GPUS = 0
 _C.WORKERS = 4
+_C.PHASE = 'train'
 
 # Cudnn related params
 _C.CUDNN = CN()
@@ -27,7 +28,7 @@ _C.CUDNN.ENABLED = True
 
 # common params for NETWORK
 _C.MODEL = CN()
-_C.MODEL.NAME = 'my_fcn'
+_C.MODEL.NAME = 'FCN'
 _C.MODEL.INIT_WEIGHTS = True
 _C.MODEL.PRETRAINED = ''
 
