@@ -6,4 +6,4 @@
 
 from .default import _C as cfg
 from .default import update_config
-from .model import MODELS
+from .model_cfg import MODEL_EXTRAS

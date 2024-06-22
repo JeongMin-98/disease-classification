@@ -12,7 +12,7 @@ from torchvision.ops import MLP
 class FCN(nn.Module):
     def __init__(self, cfg):
         super(FCN, self).__init__()
-        self.params = cfg.FCN
+        self.params = cfg.MODEL.EXTRA
         self.mlp = _add_mlp_block(self.params)
         self.output = _add_linear(self.params)
 

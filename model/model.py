@@ -4,7 +4,7 @@
 # Written by JeongMin Kim(jm.kim@dankook.ac.kr)
 # ----------------------------------------------------
 
-from config import MODELS
+# from config import cfg
 from .FCN import FCN
 
 

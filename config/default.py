@@ -11,6 +11,8 @@ from __future__ import print_function
 import os
 
 from yacs.config import CfgNode as CN
+# from .model import MODEL_EXTRAS
+from .model_cfg import MODEL_EXTRAS
 
 _C = CN()
 
@@ -30,6 +32,7 @@ _C.CUDNN.ENABLED = True
 # common params for NETWORK
 _C.MODEL = CN()
 _C.MODEL.NAME = 'FCN'
+_C.MODEL.EXTRA = MODEL_EXTRAS[_C.MODEL.NAME]
 _C.MODEL.INIT_WEIGHTS = True
 _C.MODEL.PRETRAINED = ''
 
@@ -77,14 +80,6 @@ _C.TEST.BATCH_SIZE_PER_GPU = 32
 # debug
 _C.DEBUG = CN()
 _C.DEBUG.DEBUG = False
-
-_C.FCN = CN()
-_C.FCN.INPUT_CHANNELS = 784
-_C.FCN.HIDDEN_CHANNELS = [128, 64, 10]
-_C.FCN.HIDDEN_ACTIVATION = 'ReLU'
-_C.FCN.HIDDEN_DROPOUT = 0.25
-_C.FCN.OUTPUT_CHANNELS = 2
-_C.FCN.OUTPUT_ACTIVATION = 'logSoftMax'
 
 
 def update_config(cfg, args):
