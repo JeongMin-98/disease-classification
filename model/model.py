@@ -5,7 +5,14 @@
 # ----------------------------------------------------
 
 from config import MODELS
+from .FCN import FCN
 
 
 def get_fcn(cfg, is_train, **kwargs):
-    pass
+
+    model = FCN(cfg)
+
+    # if is_train:
+    #     model.init_wegiht()
+
+    return model

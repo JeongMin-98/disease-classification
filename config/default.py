@@ -14,6 +14,7 @@ from yacs.config import CfgNode as CN
 
 _C = CN()
 
+_C.DATA_DIR = ''
 _C.OUTPUT_DIR = ''
 _C.LOG_DIR = ''
 _C.GPUS = 0
@@ -77,6 +78,14 @@ _C.TEST.BATCH_SIZE_PER_GPU = 32
 _C.DEBUG = CN()
 _C.DEBUG.DEBUG = False
 
+_C.FCN = CN()
+_C.FCN.INPUT_CHANNELS = 784
+_C.FCN.HIDDEN_CHANNELS = [128, 64, 10]
+_C.FCN.HIDDEN_ACTIVATION = 'ReLU'
+_C.FCN.HIDDEN_DROPOUT = 0.25
+_C.FCN.OUTPUT_CHANNELS = 2
+_C.FCN.OUTPUT_ACTIVATION = 'logSoftMax'
+
 
 def update_config(cfg, args):
     cfg.defrost()
@@ -92,18 +101,18 @@ def update_config(cfg, args):
     if args.dataDir:
         cfg.DATA_DIR = args.dataDir
 
-    cfg.DATASET.ROOT = os.path.join(
-        cfg.DATA_DIR, cfg.DATASET.ROOT
-    )
+    # cfg.DATASET.ROOT = os.path.join(
+    #     cfg.DATA_DIR, cfg.DATASET.ROOT
+    # )
+    #
+    # cfg.MODEL.PRETRAINED = os.path.join(
+    #     cfg.DATA_DIR, cfg.MODEL.PRETRAINED
+    # )
 
-    cfg.MODEL.PRETRAINED = os.path.join(
-        cfg.DATA_DIR, cfg.MODEL.PRETRAINED
-    )
-
-    if cfg.TEST.MODEL_FILE:
-        cfg.TEST.MODEL_FILE = os.path.join(
-            cfg.DATA_DIR, cfg.TEST.MODEL_FILE
-        )
+    # if cfg.TEST.MODEL_FILE:
+    #     cfg.TEST.MODEL_FILE = os.path.join(
+    #         cfg.DATA_DIR, cfg.TEST.MODEL_FILE
+    #     )
 
     cfg.freeze()
 

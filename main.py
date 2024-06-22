@@ -4,15 +4,16 @@
 # Written by JeongMin Kim(jm.kim@dankook.ac.kr)
 # ----------------------------------------------------
 from torchinfo import summary
-
-from model.model import check_model_build, run_visualize_feature_map_func, DeepNetwork
+#
+# from model.model import check_model_build, run_visualize_feature_map_func, DeepNetwork
 import argparse
 
 from config import cfg
 from config import update_config
 
-from utils.tools import *
+# from utils.tools import *
 from utils.tools import check_device
+from model.model import get_fcn
 
 
 def parse_args():
@@ -20,8 +21,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description=desc)
 
     parser.add_argument('--cfg',
+                        default='cfg/test.yaml',
                         help='experiment configure file name',
-                        required=True,
+                        required=False,
                         type=str)
 
     parser.add_argument('opts',
@@ -51,12 +53,19 @@ def parse_args():
     return args
 
 
-def run_fn():
+def run_fn(config):
     device = check_device()
 
     # init model
-    model = eval('models.' + cfg.MODEL.NAME + '.py')(cfg, is_train=True)
+    model = get_fcn(config, is_train=True)
 
+    model_stat = summary(model,
+                         input_size=(1, 784),
+                         device='cuda',
+                         verbose=1,
+                         col_width=16,
+                         col_names=["kernel_size", "output_size", "num_params", "mult_adds"],
+                         row_settings=["var_names"])
 
 
 """main"""
@@ -70,7 +79,7 @@ def main():
     # create logger
 
     # run
-    run_fn(args=args)
+    run_fn(cfg)
     # check_model_build(args=args)
     # run_visualize_feature_map_func(args)
 
