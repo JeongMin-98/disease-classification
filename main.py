@@ -13,7 +13,7 @@ from config import update_config
 
 # from utils.tools import *
 from utils.tools import check_device
-from model.model import get_fcn
+from lib.model import get_fcn
 
 
 def parse_args():

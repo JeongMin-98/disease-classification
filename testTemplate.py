@@ -1,4 +1,4 @@
-from model.model import run_test_template_arch
+from lib.model import run_test_template_arch
 from main import run_fn
 import argparse
 from utils.tools import *
