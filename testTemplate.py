@@ -1,7 +1,7 @@
 from lib.model import run_test_template_arch
 from main import run_fn
 import argparse
-from utils.tools import *
+from lib.utils.tools import *
 
 
 def parse_args():

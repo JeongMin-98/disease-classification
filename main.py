@@ -3,17 +3,18 @@
 # refact code from old one.
 # Written by JeongMin Kim(jm.kim@dankook.ac.kr)
 # ----------------------------------------------------
-from torchinfo import summary
 #
 # from model.model import check_model_build, run_visualize_feature_map_func, DeepNetwork
 import argparse
 
-from config import cfg
-from config import update_config
 
-# from utils.tools import *
-from utils.tools import check_device
+from torchinfo import summary
+
+# The import statement below will be refactored soon.
 from lib.model import get_fcn
+from lib.config import cfg
+from lib.config import update_config
+from lib.utils.tools import check_device
 
 
 def parse_args():
@@ -21,7 +22,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=desc)
 
     parser.add_argument('--cfg',
-                        default='cfg/test.yaml',
+                        default='experiments/test.yaml',
                         help='experiment configure file name',
                         required=False,
                         type=str)
