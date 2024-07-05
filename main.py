@@ -11,10 +11,11 @@ import argparse
 from torchinfo import summary
 
 # The import statement below will be refactored soon.
-from lib.model import get_fcn
-from lib.config import cfg
-from lib.config import update_config
-from lib.utils.tools import check_device
+import _init_path
+from model import get_fcn
+from config import cfg
+from config import update_config
+from utils.tools import check_device
 
 
 def parse_args():

@@ -1,5 +1,5 @@
 from torch import nn
-from lib.network.tools import set_layer
+from network.tools import set_layer
 
 """ Neural Network template (Using config file) """
 

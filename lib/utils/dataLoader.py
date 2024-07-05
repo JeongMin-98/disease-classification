@@ -6,7 +6,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from torchvision.datasets import MNIST
-from lib.utils.tools import check_folder, data_transform
+from utils.tools import check_folder, data_transform
 
 
 class ImageDataset(Dataset):
