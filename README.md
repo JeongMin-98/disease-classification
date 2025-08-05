@@ -17,8 +17,9 @@ conda activate disease-classification
 수동으로 설치하는 경우:
 
 ```bash
-# PyTorch 설치 (CUDA 11.1 기준)
-conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch
+# PyTorch 설치 (CUDA 12.1 기준)
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia
+
 
 # 기본 라이브러리 설치
 pip install numpy scipy scikit-learn matplotlib pillow opencv-python tqdm wandb yacs grad-cam pandas seaborn
