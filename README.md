@@ -1,15 +1,3 @@
-# torch-template
-###  Deep learning project template with pytorch
-
----
-<div align="center">
-  <img src="./assets/architecture_flow.png">
-</div>
-
-## Author
-+ Jeongmin Kim
-+ The reference is from [Junho Kim](http://bit.ly/jhkim_resume)
-
 ## Installation
 
 ### Conda Environment Setup
@@ -24,7 +12,7 @@ conda env create -f environment.yml
 conda activate disease-classification
 ```
 
-### Manual Installation
+### Manual Installation (Recommend)
 
 수동으로 설치하는 경우:
 
@@ -33,7 +21,7 @@ conda activate disease-classification
 conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch
 
 # 기본 라이브러리 설치
-pip install numpy scipy scikit-learn matplotlib pillow opencv-python tqdm wandb yacs pytorch-grad-cam pandas seaborn
+pip install numpy scipy scikit-learn matplotlib pillow opencv-python tqdm wandb yacs grad-cam pandas seaborn
 
 # 추가 라이브러리 설치
 pip install albumentations timm tensorboard tensorboardX thop pyyaml
