@@ -127,9 +127,77 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# IDE files
 .idea/
+.vscode/
+.cursor/
 
-
+# Model checkpoints and weights
 checkpoint/
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+
+# Logs and results
 logs/
+log/
 results/
+wandb/
+tensorboard_logs/
+*.log
+
+# Data files (large datasets)
+data/
+datasets/
+*.csv
+*.json
+*.xml
+*.txt
+*.zip
+*.tar.gz
+*.rar
+
+# Model outputs and visualizations
+gradcam_results/
+outputs/
+predictions/
+visualizations/
+
+# Experiments and temporary files
+experiments/
+temp/
+tmp/
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Configuration files with sensitive data
+config.ini
+secrets.json
+credentials.json
+*.key
+*.pem
+
+# Large files
+*.bin
+*.dat
+*.model
