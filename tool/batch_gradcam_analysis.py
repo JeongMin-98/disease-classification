@@ -135,39 +135,36 @@ def generate_gradcam(model, image_path, target_class, cfg, device='cuda'):
                 if target_class in target_classes:
                     target_class_idx = target_classes.index(target_class)
                 else:
+                    print(f"Warning: target_class '{target_class}' not found in class_names {class_names}")
                     target_class_idx = 0  # 기본값
         else:
-            target_class_idx = target_class
+            # target_class가 이미 인덱스인 경우
+            target_class_idx = int(target_class)
         
         # 이진 분류인 경우 타겟 인덱스를 0으로 설정 (출력이 1개뿐이므로)
         if output.shape[1] == 1:
             target_class_idx = 0
         
-        # 타겟 설정 - 이진 분류의 경우 특별 처리
-        if output.shape[1] == 1:
-            # 이진 분류: 첫 번째 출력에 대한 GradCAM (인덱스 0)
-            targets = [ClassifierOutputTarget(0)]
-        else:
-            # 다중 분류: 해당 클래스에 대한 GradCAM
-            targets = [ClassifierOutputTarget(target_class_idx)]
+        print(f"Debug: target_class={target_class}, target_class_idx={target_class_idx}, class_names={class_names}")
         
         # GradCAM 초기화 및 실행
         try:
             with GradCAM(model=model, target_layers=[target_layer]) as cam:
                 # 이진 분류의 경우 특별 처리
                 if output.shape[1] == 1:
-                    # 이진 분류: 모델의 출력을 직접 사용
-                    grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
+                    # 이진 분류: 첫 번째 출력에 대한 GradCAM (인덱스 0)
+                    targets = [ClassifierOutputTarget(target_class_idx)]
+                    grayscale_cam = cam(input_tensor=input_tensor, targets=targets)  # type: ignore
                 else:
                     # 다중 분류: 특정 클래스에 대한 GradCAM
-                    grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
+                    targets = [ClassifierOutputTarget(target_class_idx)]
+                    grayscale_cam = cam(input_tensor=input_tensor, targets=targets)  # type: ignore
                 
                 grayscale_cam = grayscale_cam[0, :]
         except Exception as e:
             print(f"GradCAM 실행 오류: {e}")
             # 대안: 모델의 출력을 직접 사용하여 히트맵 생성
             grayscale_cam = np.zeros((input_tensor.shape[2], input_tensor.shape[3]))
-    
     except Exception as e:
         print(f"GradCAM 생성 오류: {e}")
         # 오류 발생 시 더미 히트맵 생성
@@ -230,9 +227,15 @@ def save_gradcam_results(visualization, original_image, grayscale_cam, predicted
     else:
         pred_class_name = str(predicted_class)
     
+    # true_class가 이미 문자열인지 확인
+    if isinstance(true_class, int):
+        true_class_name = class_names[true_class] if true_class < len(class_names) else str(true_class)
+    else:
+        true_class_name = true_class
+    
     # 판독문 생성
     report_text = f"Patient ID: {patient_id or 'Unknown'}\n"
-    report_text += f"Diagnosis: {true_class.upper()}\n"
+    report_text += f"Diagnosis: {true_class_name.upper()}\n"
     report_text += f"Model Prediction: {pred_class_name.upper()}\n"
     if confidence is not None:
         report_text += f"Confidence: {confidence:.3f}\n"
@@ -244,17 +247,17 @@ def save_gradcam_results(visualization, original_image, grayscale_cam, predicted
     
     # 원본 이미지
     axes[0].imshow(original_image)
-    axes[0].set_title(f'Original Image\nTrue: {true_class}\nSize: {original_size[1]}x{original_size[0]}')
+    axes[0].set_title(f'Original Image\nTrue: {true_class_name.upper()}\nSize: {original_size[1]}x{original_size[0]}')
     axes[0].axis('off')
     
     # GradCAM 히트맵 (원본 크기로 리사이즈된 것)
     axes[1].imshow(grayscale_cam, cmap='jet')
-    axes[1].set_title(f'GradCAM Heatmap\nTarget: {true_class}\nSize: {gradcam_size[1]}x{gradcam_size[0]}')
+    axes[1].set_title(f'GradCAM Heatmap\nTarget: {true_class_name.upper()}\nSize: {gradcam_size[1]}x{gradcam_size[0]}')
     axes[1].axis('off')
     
     # 오버레이된 이미지
     axes[2].imshow(visualization)
-    title = f'GradCAM Overlay\nTrue: {true_class} | Pred: {pred_class_name.upper()}'
+    title = f'GradCAM Overlay\nTrue: {true_class_name.upper()} | Pred: {pred_class_name.upper()}'
     if confidence is not None:
         title += f'\nConfidence: {confidence:.3f}'
     title += f'\nOriginal: {original_size[1]}x{original_size[0]} | Model Input: {model_input_size[0]}x{model_input_size[1]}'
@@ -404,6 +407,8 @@ def get_correctly_classified_images(model, dataloader, device, max_images_per_cl
                 sample_info = {
                     'true_label': true_label_idx,
                     'pred_label': pred_label_idx,
+                    'true_class': true_class,  # 클래스 이름 추가
+                    'pred_class': pred_class,  # 클래스 이름 추가
                     'batch_idx': batch_idx,
                     'sample_idx': i,
                     'patient_id': 'unknown'  # 기본값
@@ -563,15 +568,22 @@ def main():
         
         for idx, image_info in enumerate(tqdm(images, desc=f"{class_name} GradCAM")):
             try:
-                # GradCAM 생성
+                # 디버그 정보 출력
+                print(f"Debug: Processing {class_name} image {idx+1}/{len(images)}")
+                print(f"  true_class: {image_info['true_class']}")
+                print(f"  pred_class: {image_info['pred_class']}")
+                print(f"  true_label: {image_info['true_label']}")
+                print(f"  pred_label: {image_info['pred_label']}")
+                
+                # GradCAM 생성 - true_class를 전달
                 visualization, predicted_class, confidence, original_image, grayscale_cam = generate_gradcam(
-                    model, image_info['path'], image_info['true_label'], cfg, str(device)
+                    model, image_info['path'], image_info['true_class'], cfg, str(device)
                 )
                 
-                # 결과 저장
+                # 결과 저장 - image_info['pred_class']를 사용하여 올바른 예측 클래스 전달
                 output_path = save_gradcam_results(
-                    visualization, original_image, grayscale_cam, predicted_class, 
-                    confidence, class_name, image_info['path'], class_output_dir, idx, cfg, image_info['patient_id']
+                    visualization, original_image, grayscale_cam, image_info['pred_class'], 
+                    confidence, image_info['true_class'], image_info['path'], class_output_dir, idx, cfg, image_info['patient_id']
                 )
                 
                 total_images += 1

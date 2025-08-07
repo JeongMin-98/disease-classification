@@ -207,4 +207,28 @@ if __name__ == "__main__":
     parser.add_argument('--cfg', type=str, default='experiments/image_exp/ra_hand/ra_hand_classifier_OA_Normal.yaml', help='실험에 사용할 config yaml 경로')
     parser.add_argument('--seed', type=int, default=42, help='랜덤 시드')
     args = parser.parse_args()
-    main(args) 
+    main(args)
+
+"""
+WandB 체크포인트 기능 사용법:
+
+1. 실험 중에는 로컬에만 체크포인트가 저장됩니다 (성능 최적화)
+2. 실험 종료 시에만 best_model과 final_model이 wandb에 업로드됩니다
+3. wandb에서 체크포인트를 다운로드하려면:
+
+   # best_model 다운로드
+   checkpoint_path = BaseTrainer.download_checkpoint_from_wandb(
+       run_id="your_run_id", 
+       checkpoint_type="best_model"
+   )
+   
+   # final_model 다운로드  
+   checkpoint_path = BaseTrainer.download_checkpoint_from_wandb(
+       run_id="your_run_id", 
+       checkpoint_type="final_model"
+   )
+
+4. 다운로드한 체크포인트를 로드하려면:
+   trainer = OriginalTrainer(cfg, model, device, output_dir)
+   trainer.load_checkpoint(checkpoint_path)
+""" 

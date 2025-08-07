@@ -244,13 +244,54 @@ class BaseTrainer(ABC):
             if self.current_epoch == 0:  # 첫 에포크에서만 로깅
                 self.logger.info(f"No scheduler used. Fixed learning rate: {current_lr:.6f}")
     
+    def save_checkpoint(self, filepath: str):
+        """체크포인트 저장 (로컬만)"""
+        checkpoint = {
+            'epoch': self.current_epoch,
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'best_val_loss': self.best_val_loss,
+            'best_model_state': self.best_model_state,
+            'final_model_state': self.final_model_state,  # final_model_state 추가
+            'cfg': self.cfg
+        }
+        
+        if self.scheduler is not None:
+            checkpoint['scheduler_state_dict'] = self.scheduler.state_dict()
+        
+        # 로컬에만 저장 (실험 중에는 wandb 업로드하지 않음)
+        torch.save(checkpoint, filepath)
+        self.logger.info(f"Checkpoint saved to {filepath}")
+    
+    def _upload_checkpoint_to_wandb(self, filepath: str, checkpoint_type: str):
+        """체크포인트를 wandb에 업로드 (실험 종료 시에만 사용)"""
+        if self.wandb_run is not None:
+            try:
+                # 파일명 추출
+                filename = os.path.basename(filepath)
+                
+                # wandb에 아티팩트로 업로드
+                artifact = wandb.Artifact(
+                    name=f"{checkpoint_type}-{self.wandb_run.id}",
+                    type="model",
+                    description=f"{checkpoint_type} model checkpoint from epoch {self.current_epoch}"
+                )
+                
+                artifact.add_file(filepath, name=filename)
+                self.wandb_run.log_artifact(artifact)
+                
+                self.logger.info(f"{checkpoint_type} checkpoint uploaded to wandb: {filename}")
+                
+            except Exception as e:
+                self.logger.warning(f"Failed to upload {checkpoint_type} checkpoint to wandb: {e}")
+    
     def save_best_model(self, val_loss: float):
-        """최고 모델 저장"""
+        """최고 모델 저장 (로컬에만 저장)"""
         if val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
             self.best_model_state = self.model.state_dict().copy()
             
-            # wandb local 저장 위치에 체크포인트 저장
+            # 로컬에 체크포인트 저장
             if self.wandb_run is not None:
                 # wandb run의 디렉토리 사용
                 best_model_path = os.path.join(self.wandb_run.dir, 'best_model.pth')
@@ -267,6 +308,13 @@ class BaseTrainer(ABC):
             
             self.logger.info(f"New best model saved with validation loss: {val_loss:.4f}")
             self.logger.info(f"Checkpoint saved to: {best_model_path}")
+            
+            # wandb에 best model 메트릭만 로깅 (체크포인트는 업로드하지 않음)
+            if self.wandb_run is not None:
+                self.wandb_run.log({
+                    "best_val_loss": val_loss,
+                    "best_model_epoch": self.current_epoch
+                })
     
     def load_best_model(self):
         """최고 모델 로드"""
@@ -371,29 +419,27 @@ class BaseTrainer(ABC):
         self.save_checkpoint(final_checkpoint_path)
         self.logger.info(f"Final checkpoint saved to: {final_checkpoint_path}")
         
+        # 실험 종료 시에만 wandb에 체크포인트 업로드
+        if self.wandb_run is not None:
+            # best_model 업로드
+            if self.best_model_state is not None:
+                best_model_path = os.path.join(self.wandb_run.dir, 'best_model.pth')
+                if os.path.exists(best_model_path):
+                    self._upload_checkpoint_to_wandb(best_model_path, "best_model")
+                else:
+                    self.logger.warning("Best model checkpoint file not found")
+            
+            # final_model 업로드
+            if os.path.exists(final_checkpoint_path):
+                self._upload_checkpoint_to_wandb(final_checkpoint_path, "final_model")
+            else:
+                self.logger.warning("Final model checkpoint file not found")
+        
         # WandB 종료
         if self.wandb_run is not None:
             self.wandb_run.finish()
         
         return best_test_metrics['test_acc']  # 기존과의 호환성을 위해 best model의 정확도 반환
-    
-    def save_checkpoint(self, filepath: str):
-        """체크포인트 저장"""
-        checkpoint = {
-            'epoch': self.current_epoch,
-            'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'best_val_loss': self.best_val_loss,
-            'best_model_state': self.best_model_state,
-            'final_model_state': self.final_model_state,  # final_model_state 추가
-            'cfg': self.cfg
-        }
-        
-        if self.scheduler is not None:
-            checkpoint['scheduler_state_dict'] = self.scheduler.state_dict()
-        
-        torch.save(checkpoint, filepath)
-        self.logger.info(f"Checkpoint saved to {filepath}")
     
     def load_checkpoint(self, filepath: str):
         """체크포인트 로드"""
@@ -410,3 +456,49 @@ class BaseTrainer(ABC):
             self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         
         self.logger.info(f"Checkpoint loaded from {filepath}") 
+    
+    @classmethod
+    def download_checkpoint_from_wandb(cls, run_id: str, checkpoint_type: str = "best_model", project_name: Optional[str] = None):
+        """
+        wandb에서 체크포인트를 다운로드하는 클래스 메서드
+        
+        Args:
+            run_id: wandb run ID
+            checkpoint_type: "best_model" 또는 "final_model"
+            project_name: wandb 프로젝트명 (None이면 기본값 사용)
+        
+        Returns:
+            str: 다운로드된 체크포인트 파일 경로
+        """
+        try:
+            import wandb
+            
+            # wandb API 초기화
+            api = wandb.Api()
+            
+            # 프로젝트명이 없으면 기본값 사용
+            if project_name is None:
+                project_name = "medical-classification-original"  # 기본값
+            
+            # run 가져오기
+            run = api.run(f"{project_name}/{run_id}")
+            
+            # 아티팩트 찾기
+            artifact_name = f"{checkpoint_type}-{run_id}"
+            artifact = api.artifact(f"{project_name}/{artifact_name}:latest")
+            
+            # 체크포인트 다운로드
+            download_dir = artifact.download()
+            
+            # 체크포인트 파일 경로 찾기
+            checkpoint_files = [f for f in os.listdir(download_dir) if f.endswith('.pth')]
+            if checkpoint_files:
+                checkpoint_path = os.path.join(download_dir, checkpoint_files[0])
+                print(f"Checkpoint downloaded to: {checkpoint_path}")
+                return checkpoint_path
+            else:
+                raise FileNotFoundError("No checkpoint file found in artifact")
+                
+        except Exception as e:
+            print(f"Failed to download checkpoint from wandb: {e}")
+            return None 
