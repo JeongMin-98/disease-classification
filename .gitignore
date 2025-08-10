@@ -201,3 +201,5 @@ credentials.json
 *.bin
 *.dat
 *.model
+
+batch_gradcam_results/
