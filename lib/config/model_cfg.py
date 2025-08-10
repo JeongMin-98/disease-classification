@@ -6,6 +6,7 @@ VGG19 = CN(new_allowed=True)
 VGG19.INPUT_SIZE = [224, 224, 3]
 VGG19.NUM_CLASSES = 2
 VGG19.DROPOUT = 0.5
+VGG19.BATCH_NORM = True  # True: VGG19_BN, False: VGG19
 
 YOLOv5 = CN(new_allowed=True)
 YOLOv5.CFG = './experiments/YOLO/model/yolov5.yaml'
