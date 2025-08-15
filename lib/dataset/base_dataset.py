@@ -39,17 +39,32 @@ class BaseDataset(Dataset):
         std = cfg.DATASET.STD
         augment = getattr(cfg.DATASET, 'AUGMENT', False)
         
-        # 동적 이미지 크기 설정
-        image_size = getattr(cfg.DATASET, 'IMAGE_SIZE', 224)
+        # 동적 이미지 크기 설정 (H, W 지원)
+        image_size = getattr(cfg.DATASET, 'IMAGE_SIZE', [224, 224])
         if isinstance(image_size, int):
+            # 정수인 경우 1:1 비율 (H=W)
             image_size = (image_size, image_size)
+        elif isinstance(image_size, (list, tuple)):
+            # 리스트/튜플인 경우 (H, W) 형태
+            if len(image_size) == 2:
+                image_size = tuple(image_size)
+            else:
+                # 잘못된 형태인 경우 기본값 사용
+                self.logger.warning(f"Invalid IMAGE_SIZE format: {image_size}, using default (224, 224)")
+                image_size = (224, 224)
+        else:
+            # 기타 경우 기본값 사용
+            self.logger.warning(f"Unknown IMAGE_SIZE type: {type(image_size)}, using default (224, 224)")
+            image_size = (224, 224)
+        
+        self.logger.info(f"Image size set to: {image_size} (H: {image_size[0]}, W: {image_size[1]})")
         
         # 동적 채널 수 설정
         input_channels = getattr(cfg.DATASET, 'INPUT_CHANNELS', 3)
         
         transforms_list = [
             transforms.Grayscale(num_output_channels=input_channels),  # 동적 채널 수
-            transforms.Resize(image_size),                            # 동적 크기
+            transforms.Resize(image_size),                            # 동적 크기 (H, W)
         ]
         
         # Data augmentation 적용 (AUGMENT=True인 경우)
@@ -90,17 +105,30 @@ class BaseDataset(Dataset):
         mean = cfg.DATASET.MEAN
         std = cfg.DATASET.STD
         
-        # 동적 이미지 크기 설정
-        image_size = getattr(cfg.DATASET, 'IMAGE_SIZE', 224)
+        # 동적 이미지 크기 설정 (H, W 지원)
+        image_size = getattr(cfg.DATASET, 'IMAGE_SIZE', [224, 224])
         if isinstance(image_size, int):
+            # 정수인 경우 1:1 비율 (H=W)
             image_size = (image_size, image_size)
+        elif isinstance(image_size, (list, tuple)):
+            # 리스트/튜플인 경우 (H, W) 형태
+            if len(image_size) == 2:
+                image_size = tuple(image_size)
+            else:
+                # 잘못된 형태인 경우 기본값 사용
+                self.logger.warning(f"Invalid IMAGE_SIZE format: {image_size}, using default (224, 224)")
+                image_size = (224, 224)
+        else:
+            # 기타 경우 기본값 사용
+            self.logger.warning(f"Unknown IMAGE_SIZE type: {type(image_size)}, using default (224, 224)")
+            image_size = (224, 224)
         
         # 동적 채널 수 설정
         input_channels = getattr(cfg.DATASET, 'INPUT_CHANNELS', 3)
         
         transforms_list = [
             transforms.Grayscale(num_output_channels=input_channels),  # 동적 채널 수
-            transforms.Resize(image_size),                            # 동적 크기
+            transforms.Resize(image_size),                            # 동적 크기 (H, W)
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
         ]
@@ -111,6 +139,24 @@ class BaseDataset(Dataset):
         """CLAHE 테스트용 transform (augmentation 없음)"""
         mean = cfg.DATASET.MEAN
         std = cfg.DATASET.STD
+        
+        # 동적 이미지 크기 설정 (H, W 지원)
+        image_size = getattr(cfg.DATASET, 'IMAGE_SIZE', [224, 224])
+        if isinstance(image_size, int):
+            # 정수인 경우 1:1 비율 (H=W)
+            image_size = (image_size, image_size)
+        elif isinstance(image_size, (list, tuple)):
+            # 리스트/튜플인 경우 (H, W) 형태
+            if len(image_size) == 2:
+                image_size = tuple(image_size)
+            else:
+                # 잘못된 형태인 경우 기본값 사용
+                self.logger.warning(f"Invalid IMAGE_SIZE format: {image_size}, using default (224, 224)")
+                image_size = (224, 224)
+        else:
+            # 기타 경우 기본값 사용
+            self.logger.warning(f"Unknown IMAGE_SIZE type: {type(image_size)}, using default (224, 224)")
+            image_size = (224, 224)
         
         # CLAHE 파라미터 (cfg에서 가져오거나 기본값 사용)
         clahe_params = getattr(cfg.DATASET, 'CLAHE_PARAMS', {})
@@ -123,7 +169,7 @@ class BaseDataset(Dataset):
         transforms_list = [
             transforms.Lambda(lambda x: clahe_transform(x)),  # CLAHE 전처리
             transforms.Grayscale(num_output_channels=3),
-            transforms.Resize((224, 224)),
+            transforms.Resize(image_size),  # 동적 크기 (H, W)
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
         ]
@@ -135,13 +181,31 @@ class BaseDataset(Dataset):
         mean = cfg.DATASET.MEAN
         std = cfg.DATASET.STD
         
+        # 동적 이미지 크기 설정 (H, W 지원)
+        image_size = getattr(cfg.DATASET, 'IMAGE_SIZE', [224, 224])
+        if isinstance(image_size, int):
+            # 정수인 경우 1:1 비율 (H=W)
+            image_size = (image_size, image_size)
+        elif isinstance(image_size, (list, tuple)):
+            # 리스트/튜플인 경우 (H, W) 형태
+            if len(image_size) == 2:
+                image_size = tuple(image_size)
+            else:
+                # 잘못된 형태인 경우 기본값 사용
+                self.logger.warning(f"Invalid IMAGE_SIZE format: {image_size}, using default (224, 224)")
+                image_size = (224, 224)
+        else:
+            # 기타 경우 기본값 사용
+            self.logger.warning(f"Unknown IMAGE_SIZE type: {type(image_size)}, using default (224, 224)")
+            image_size = (224, 224)
+        
         # 적응적 히스토그램 transform 생성 (인자 없이 호출)
         adaptive_transform = create_adaptive_transform()
         
         transforms_list = [
             transforms.Lambda(lambda x: adaptive_transform(x)),  # Adaptive 전처리
             transforms.Grayscale(num_output_channels=3),
-            transforms.Resize((224, 224)),
+            transforms.Resize(image_size),  # 동적 크기 (H, W)
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
         ]
@@ -154,6 +218,24 @@ class BaseDataset(Dataset):
         std = cfg.DATASET.STD
         augment = getattr(cfg.DATASET, 'AUGMENT', False)
         
+        # 동적 이미지 크기 설정 (H, W 지원)
+        image_size = getattr(cfg.DATASET, 'IMAGE_SIZE', [224, 224])
+        if isinstance(image_size, int):
+            # 정수인 경우 1:1 비율 (H=W)
+            image_size = (image_size, image_size)
+        elif isinstance(image_size, (list, tuple)):
+            # 리스트/튜플인 경우 (H, W) 형태
+            if len(image_size) == 2:
+                image_size = tuple(image_size)
+            else:
+                # 잘못된 형태인 경우 기본값 사용
+                self.logger.warning(f"Invalid IMAGE_SIZE format: {image_size}, using default (224, 224)")
+                image_size = (224, 224)
+        else:
+            # 기타 경우 기본값 사용
+            self.logger.warning(f"Unknown IMAGE_SIZE type: {type(image_size)}, using default (224, 224)")
+            image_size = (224, 224)
+        
         # CLAHE 파라미터 (cfg에서 가져오거나 기본값 사용)
         clahe_params = getattr(cfg.DATASET, 'CLAHE_PARAMS', {})
         clip_limit = clahe_params.get('clip_limit', 2.0)
@@ -165,7 +247,7 @@ class BaseDataset(Dataset):
         transforms_list = [
             transforms.Lambda(lambda x: clahe_transform(x)),  # CLAHE 전처리
             transforms.Grayscale(num_output_channels=3),
-            transforms.Resize((224, 224)),
+            transforms.Resize(image_size),  # 동적 크기 (H, W)
         ]
         
         # Data augmentation 적용 (AUGMENT=True인 경우)
@@ -196,13 +278,31 @@ class BaseDataset(Dataset):
         std = cfg.DATASET.STD
         augment = getattr(cfg.DATASET, 'AUGMENT', False)
         
+        # 동적 이미지 크기 설정 (H, W 지원)
+        image_size = getattr(cfg.DATASET, 'IMAGE_SIZE', [224, 224])
+        if isinstance(image_size, int):
+            # 정수인 경우 1:1 비율 (H=W)
+            image_size = (image_size, image_size)
+        elif isinstance(image_size, (list, tuple)):
+            # 리스트/튜플인 경우 (H, W) 형태
+            if len(image_size) == 2:
+                image_size = tuple(image_size)
+            else:
+                # 잘못된 형태인 경우 기본값 사용
+                self.logger.warning(f"Invalid IMAGE_SIZE format: {image_size}, using default (224, 224)")
+                image_size = (224, 224)
+        else:
+            # 기타 경우 기본값 사용
+            self.logger.warning(f"Unknown IMAGE_SIZE type: {type(image_size)}, using default (224, 224)")
+            image_size = (224, 224)
+        
         # 적응적 히스토그램 transform 생성 (인자 없이 호출)
         adaptive_transform = create_adaptive_transform()
         
         transforms_list = [
             transforms.Lambda(lambda x: adaptive_transform(x)),  # Adaptive 전처리
             transforms.Grayscale(num_output_channels=3),
-            transforms.Resize((224, 224)),
+            transforms.Resize(image_size),  # 동적 크기 (H, W)
         ]
         
         # Data augmentation 적용 (AUGMENT=True인 경우)
@@ -230,22 +330,45 @@ class BaseDataset(Dataset):
     def balance_dataset(self, target_count_per_class=None, min_ratio=1, max_ratio=1.05):
         """
         클래스별로 균등하게 샘플링하여 self.db_rec을 재구성한다.
-        target_count_per_class가 지정되면 각 클래스별 해당 개수로 맞춘다.
+        스마트 균형 맞춤: 224개로 Undersampling 가능하면 그대로, Oversampling 필요시 최소 클래스 수로 맞춤
         """
         class_counts = Counter([record['class_label'] for record in self.db_rec])
         self.logger.info(f"[balance_dataset] 샘플링 전 클래스별 개수: {dict(class_counts)}")
         balanced_data = []
+        
         if target_count_per_class is not None:
-            self.logger.info(f"[balance_dataset] target_count_per_class={target_count_per_class}로 균등 샘플링 진행")
-            for class_name, count in class_counts.items():
-                class_data = [record for record in self.db_rec if record['class_label'] == class_name]
-                if len(class_data) >= target_count_per_class:
+            # 스마트 균형 맞춤 로직
+            min_class_count = min(class_counts.values())
+            
+            # 모든 클래스가 target_count_per_class 이상인지 확인
+            can_undersample = all(count >= target_count_per_class for count in class_counts.values())
+            
+            if can_undersample:
+                # 모든 클래스가 충분하면 224개로 Undersampling
+                self.logger.info(f"[balance_dataset] 모든 클래스가 {target_count_per_class}개 이상이므로 Undersampling 진행")
+                for class_name, count in class_counts.items():
+                    class_data = [record for record in self.db_rec if record['class_label'] == class_name]
                     selected_data = random.sample(class_data, target_count_per_class)
-                else:
-                    selected_data = random.choices(class_data, k=target_count_per_class)
-                balanced_data.extend(selected_data)
-                self.logger.info(f"[balance_dataset] {class_name}: {len(selected_data)}개 샘플링 완료 (원본 {len(class_data)})")
+                    balanced_data.extend(selected_data)
+                    self.logger.info(f"[balance_dataset] {class_name}: {len(selected_data)}개 Undersampling 완료 (원본 {len(class_data)})")
+            else:
+                # 일부 클래스가 부족하면 최소 클래스 수로 맞춤
+                self.logger.info(f"[balance_dataset] 일부 클래스가 {target_count_per_class}개 미만이므로 최소 클래스 수({min_class_count}개)로 맞춤")
+                for class_name, count in class_counts.items():
+                    class_data = [record for record in self.db_rec if record['class_label'] == class_name]
+                    if count > min_class_count:
+                        # 다수 클래스: 최소 클래스 수에 맞춰 Undersampling
+                        scale_factor = random.uniform(min_ratio, max_ratio)
+                        target_count = int(min_class_count * scale_factor)
+                        selected_data = random.choices(class_data, k=target_count)
+                    else:
+                        # 소수 클래스: 원본 그대로 유지
+                        target_count = count
+                        selected_data = class_data
+                    balanced_data.extend(selected_data)
+                    self.logger.info(f"[balance_dataset] {class_name}: {len(selected_data)}개 샘플링 완료 (원본 {len(class_data)})")
         else:
+            # 기존 로직: 최소 클래스 수 기준으로 비율 샘플링
             min_class_count = min(class_counts.values())
             self.logger.info(f"[balance_dataset] min_class_count={min_class_count} 기준으로 비율 샘플링 진행")
             for class_name, count in class_counts.items():
@@ -254,6 +377,7 @@ class BaseDataset(Dataset):
                 target_count = int(min_class_count * scale_factor)
                 balanced_data.extend(random.choices(class_data, k=target_count))
                 self.logger.info(f"[balance_dataset] {class_name}: {target_count}개 샘플링 완료 (원본 {len(class_data)})")
+        
         random.shuffle(balanced_data)
         self.db_rec = balanced_data
         self.class_counts = Counter([record['class_label'] for record in self.db_rec])

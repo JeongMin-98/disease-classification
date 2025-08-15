@@ -20,7 +20,7 @@ import random
 from torch.utils.data import random_split
 
 import _init_path
-from models.vgg19 import VGG
+from models import create as create_model
 from dataset import MedicalImageDataset
 from config import cfg, update_config
 from pytorch_grad_cam  import GradCAM
@@ -33,13 +33,12 @@ import numpy as np
 def load_model(checkpoint_path, cfg, device):
     """체크포인트에서 모델을 로드합니다."""
 
-    num_classes = len(cfg.DATASET.TARGET_CLASSES)
-    # 모델 초기화
-    model = VGG(
-        num_classes=num_classes,
-        Target_Classes=cfg.DATASET.TARGET_CLASSES,
-        freeze_layers=cfg.MODEL.FREEZE_LAYERS
-    )
+    # cfg에서 모델 이름 가져오기
+    model_name = getattr(cfg.MODEL, 'NAME', 'VGG19_BN')
+    print(f"모델 이름: {model_name}")
+    
+    # 모델 생성
+    model = create_model(model_name, cfg)
     
     # 체크포인트 로드
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -55,9 +54,52 @@ def load_model(checkpoint_path, cfg, device):
 
 def get_gradcam_target_layer(model):
     """GradCAM을 위한 타겟 레이어를 반환합니다."""
-    # VGG19의 마지막 convolutional layer (features의 마지막 레이어)
-    target_layer = model.model.features[-1]
-    return target_layer
+    model_name = getattr(cfg.MODEL, 'NAME', 'VGG19_BN')
+    print(f"GradCAM 타겟 레이어 선택 - 모델: {model_name}")
+    
+    try:
+        if model_name.startswith('VGG'):
+            # VGG19의 마지막 convolutional layer (features의 마지막 레이어)
+            if hasattr(model.model, 'features'):
+                target_layer = model.model.features[-1]
+                print(f"VGG 모델 - features[-1] 선택됨")
+            else:
+                raise AttributeError(f"VGG 모델에 features 속성이 없습니다: {type(model.model)}")
+                
+        elif model_name.startswith('ResNet'):
+            # ResNet의 마지막 convolutional layer (layer4의 마지막 레이어)
+            if hasattr(model.model, 'layer4'):
+                target_layer = model.model.layer4[-1]
+                print(f"ResNet 모델 - layer4[-1] 선택됨")
+            else:
+                # ResNet의 다른 가능한 구조들
+                if hasattr(model.model, 'layer3'):
+                    target_layer = model.model.layer3[-1]
+                    print(f"ResNet 모델 - layer3[-1] 선택됨 (layer4 없음)")
+                else:
+                    raise AttributeError(f"ResNet 모델에 layer4 또는 layer3 속성이 없습니다: {type(model.model)}")
+        else:
+            # 기본값으로 VGG 방식 사용
+            if hasattr(model.model, 'features'):
+                target_layer = model.model.features[-1]
+                print(f"기본 모델 - features[-1] 선택됨")
+            else:
+                raise AttributeError(f"알 수 없는 모델 구조: {type(model.model)}")
+        
+        print(f"타겟 레이어 타입: {type(target_layer)}")
+        return target_layer
+        
+    except Exception as e:
+        print(f"GradCAM 타겟 레이어 선택 중 오류: {e}")
+        print(f"모델 구조 디버깅:")
+        print(f"  model type: {type(model)}")
+        print(f"  model.model type: {type(model.model)}")
+        if hasattr(model.model, '__dict__'):
+            print(f"  model.model attributes: {list(model.model.__dict__.keys())}")
+        
+        # 마지막 수단으로 모델의 첫 번째 레이어 사용
+        print("기본 타겟 레이어 사용")
+        return model.model
 
 def preprocess_image_for_gradcam(image_path, cfg, target_size=None):
     """이미지를 GradCAM용으로 전처리합니다."""
@@ -200,14 +242,15 @@ def generate_gradcam(model, image_path, target_class, cfg, device='cuda'):
     return visualization, predicted_class, confidence, original_image, grayscale_cam_resized
 
 def save_gradcam_results(visualization, original_image, grayscale_cam, predicted_class, 
-                        confidence, true_class, image_path, output_dir, image_idx, cfg, patient_id=None):
+                        confidence, true_class, image_path, output_dir, image_idx, cfg, patient_id=None, is_correct=True):
     """GradCAM 결과를 저장합니다."""
     # 출력 디렉토리 생성
     os.makedirs(output_dir, exist_ok=True)
     
-    # 파일명 생성
+    # 파일명 생성 (정확도 정보 포함)
     image_name = Path(image_path).stem
-    output_path = os.path.join(output_dir, f"{image_idx:03d}_{image_name}_gradcam.png")
+    accuracy_status = "correct" if is_correct else "incorrect"
+    output_path = os.path.join(output_dir, f"{image_idx:03d}_{image_name}_{accuracy_status}_gradcam.png")
     
     # 원본 이미지 크기 정보
     original_size = original_image.shape[:2]
@@ -235,10 +278,11 @@ def save_gradcam_results(visualization, original_image, grayscale_cam, predicted
     
     # 판독문 생성
     report_text = f"Patient ID: {patient_id or 'Unknown'}\n"
-    report_text += f"Diagnosis: {true_class_name.upper()}\n"
+    report_text += f"True Diagnosis: {true_class_name.upper()}\n"
     report_text += f"Model Prediction: {pred_class_name.upper()}\n"
     if confidence is not None:
         report_text += f"Confidence: {confidence:.3f}\n"
+    report_text += f"Status: {'CORRECT' if is_correct else 'INCORRECT'}\n"
     report_text += f"Image Size: {original_size[1]}x{original_size[0]}\n"
     report_text += f"Model Input: {model_input_size[0]}x{model_input_size[1]}"
     
@@ -260,6 +304,7 @@ def save_gradcam_results(visualization, original_image, grayscale_cam, predicted
     title = f'GradCAM Overlay\nTrue: {true_class_name.upper()} | Pred: {pred_class_name.upper()}'
     if confidence is not None:
         title += f'\nConfidence: {confidence:.3f}'
+    title += f'\nStatus: {"CORRECT" if is_correct else "INCORRECT"}'
     title += f'\nOriginal: {original_size[1]}x{original_size[0]} | Model Input: {model_input_size[0]}x{model_input_size[1]}'
     axes[2].set_title(title)
     axes[2].axis('off')
@@ -332,16 +377,15 @@ def create_stratified_splits(dataset, train_ratio=0.7, val_ratio=0.15, test_rati
     
     return train_set, val_set, test_set
 
-def get_correctly_classified_images(model, dataloader, device, max_images_per_class=32):
-    """올바르게 분류된 이미지들을 찾습니다."""
+def get_all_test_images(model, dataloader, device):
+    """테스트셋의 모든 이미지에 대해 예측 결과를 수집합니다."""
     model.eval()
     
     # cfg에서 클래스 이름 가져오기 - INCLUDE_CLASSES 사용
     target_classes = cfg.DATASET.INCLUDE_CLASSES or cfg.DATASET.Target_Classes
     class_names = target_classes if target_classes else ['oa', 'normal']
     
-    correct_images = {class_name: [] for class_name in class_names}
-    incorrect_images = {class_name: [] for class_name in class_names}  # 잘못 분류된 이미지도 수집
+    all_images = []
     
     # 디버깅을 위한 통계
     total_images = 0
@@ -352,7 +396,7 @@ def get_correctly_classified_images(model, dataloader, device, max_images_per_cl
     prediction_distribution = {class_name: {pred_class: 0 for pred_class in class_names} for class_name in class_names}
     
     with torch.no_grad():
-        for batch_idx, batch in enumerate(tqdm(dataloader, desc="올바른 분류 찾는 중")):
+        for batch_idx, batch in enumerate(tqdm(dataloader, desc="테스트셋 전체 분석 중")):
             # 배치 데이터 처리
             if isinstance(batch, (list, tuple)):
                 if len(batch) == 2:
@@ -378,14 +422,14 @@ def get_correctly_classified_images(model, dataloader, device, max_images_per_cl
             if outputs.shape[1] == 1:
                 # 이진 분류 (sigmoid 출력)
                 predicted = (outputs.squeeze() > 0).long()
+                confidence = torch.sigmoid(outputs.squeeze())
             else:
                 # 다중 분류 (softmax 출력)
                 predicted = torch.argmax(outputs, dim=1)
+                confidence = F.softmax(outputs, dim=1).max(dim=1)[0]
             
-            # 올바르게 분류된 이미지들 찾기
-            correct_mask = (predicted == labels)
-            
-            for i, (is_correct, true_label, pred_label) in enumerate(zip(correct_mask, labels, predicted)):
+            # 각 이미지에 대해 결과 수집
+            for i, (true_label, pred_label, conf) in enumerate(zip(labels, predicted, confidence)):
                 total_images += 1
                 
                 # 클래스 이름 가져오기 - 정수 인덱스로 변환
@@ -400,6 +444,7 @@ def get_correctly_classified_images(model, dataloader, device, max_images_per_cl
                 
                 # 통계 업데이트
                 class_counts[true_class] += 1
+                is_correct = (true_label_idx == pred_label_idx)
                 if is_correct:
                     correct_counts[true_class] += 1
                 
@@ -407,11 +452,13 @@ def get_correctly_classified_images(model, dataloader, device, max_images_per_cl
                 sample_info = {
                     'true_label': true_label_idx,
                     'pred_label': pred_label_idx,
-                    'true_class': true_class,  # 클래스 이름 추가
-                    'pred_class': pred_class,  # 클래스 이름 추가
+                    'true_class': true_class,
+                    'pred_class': pred_class,
+                    'confidence': conf.item() if isinstance(conf, torch.Tensor) else conf,
+                    'is_correct': is_correct,
                     'batch_idx': batch_idx,
                     'sample_idx': i,
-                    'patient_id': 'unknown'  # 기본값
+                    'patient_id': 'unknown'
                 }
                 
                 # 데이터셋에서 실제 이미지 경로와 환자 ID 가져오기
@@ -433,50 +480,31 @@ def get_correctly_classified_images(model, dataloader, device, max_images_per_cl
                     # 경로를 찾을 수 없는 경우
                     sample_info['path'] = f"unknown_path_{batch_idx}_{i}"
                 
-                if is_correct:
-                    if len(correct_images[true_class]) < max_images_per_class:
-                        correct_images[true_class].append(sample_info)
-                else:
-                    # 잘못 분류된 이미지도 수집 (normal 클래스가 올바르게 분류되지 않을 경우를 대비)
-                    if len(incorrect_images[true_class]) < max_images_per_class:
-                        incorrect_images[true_class].append(sample_info)
-            
-            # 충분한 이미지를 찾았으면 중단
-            if all(len(correct_images[class_name]) >= max_images_per_class for class_name in class_names):
-                break
-    
-    # normal 클래스가 올바르게 분류된 이미지가 없으면 잘못 분류된 이미지 사용
-    for class_name in class_names:
-        if len(correct_images[class_name]) == 0 and len(incorrect_images[class_name]) > 0:
-            print(f"Warning: {class_name} 클래스에 올바르게 분류된 이미지가 없어서 잘못 분류된 이미지를 사용합니다.")
-            correct_images[class_name] = incorrect_images[class_name][:max_images_per_class]
+                all_images.append(sample_info)
     
     # 디버깅 정보 출력
-    print(f"\n=== 디버깅 정보 ===")
+    print(f"\n=== 전체 테스트셋 분석 결과 ===")
     print(f"총 이미지 수: {total_images}")
     print(f"클래스별 총 개수: {class_counts}")
     print(f"클래스별 올바른 분류 개수: {correct_counts}")
     accuracy_info = {k: v/class_counts[k]*100 if class_counts[k] > 0 else 0 for k, v in correct_counts.items()}
     print(f"클래스별 정확도: {accuracy_info}")
-    found_images = {k: len(v) for k, v in correct_images.items()}
-    print(f"찾은 이미지: {found_images}")
+    print(f"전체 정확도: {sum(correct_counts.values())/total_images*100:.2f}%")
     print(f"예측 분포:")
     for true_class in class_names:
         print(f"  {true_class} -> {prediction_distribution[true_class]}")
-    print("==================\n")
+    print("==============================\n")
     
-    return correct_images
+    return all_images
 
 def main():
-    parser = argparse.ArgumentParser(description='배치 GradCAM 분석')
+    parser = argparse.ArgumentParser(description='전체 테스트셋 GradCAM 분석')
     parser.add_argument('--checkpoint', type=str, required=True, 
                        help='체크포인트 파일 경로')
     parser.add_argument('--cfg', type=str, required=True,
                        help='설정 파일 경로')
-    parser.add_argument('--output_dir', type=str, default='batch_gradcam_results',
+    parser.add_argument('--output_dir', type=str, default='full_test_gradcam_results',
                        help='결과 저장 디렉토리')
-    parser.add_argument('--max_images_per_class', type=int, default=32,
-                       help='클래스당 최대 이미지 수')
     parser.add_argument('--device', type=str, default='cuda',
                        help='사용할 디바이스 (cuda/cpu)')
     parser.add_argument('--seed', type=int, default=42,
@@ -544,46 +572,60 @@ def main():
     # 테스트 데이터로더 생성
     test_loader = DataLoader(test_set, batch_size=cfg.TEST.BATCH_SIZE_PER_GPU, shuffle=False)
     
-    # 올바르게 분류된 이미지들 찾기
-    print("올바르게 분류된 이미지들을 찾는 중...")
-    correct_images = get_correctly_classified_images(
-        model, test_loader, device, args.max_images_per_class
-    )
+    # 전체 테스트셋 분석
+    print("전체 테스트셋 분석 중...")
+    all_test_images = get_all_test_images(model, test_loader, device)
     
     # cfg에서 클래스 이름 가져오기 - INCLUDE_CLASSES 사용
     target_classes = cfg.DATASET.INCLUDE_CLASSES or cfg.DATASET.Target_Classes
     class_names = target_classes if target_classes else ['oa', 'normal']
     
-    print(f"찾은 이미지 수:")
-    for class_name in class_names:
-        print(f"  {class_name.upper()} 클래스: {len(correct_images[class_name])}개")
+    print(f"전체 테스트셋 이미지 수: {len(all_test_images)}개")
     
     # GradCAM 생성
-    print("\nGradCAM 생성 중...")
+    print("\n전체 테스트셋에 대해 GradCAM 생성 중...")
     total_images = 0
+    correct_images = 0
+    incorrect_images = 0
     
-    for class_name, images in correct_images.items():
-        print(f"\n{class_name.upper()} 클래스 처리 중...")
+    # 클래스별로 결과 저장
+    for class_name in class_names:
         class_output_dir = os.path.join(args.output_dir, class_name)
+        correct_output_dir = os.path.join(class_output_dir, 'correct')
+        incorrect_output_dir = os.path.join(class_output_dir, 'incorrect')
         
-        for idx, image_info in enumerate(tqdm(images, desc=f"{class_name} GradCAM")):
+        # 해당 클래스의 이미지들만 필터링
+        class_images = [img for img in all_test_images if img['true_class'] == class_name]
+        
+        print(f"\n{class_name.upper()} 클래스 처리 중... (총 {len(class_images)}개)")
+        
+        for idx, image_info in enumerate(tqdm(class_images, desc=f"{class_name} GradCAM")):
             try:
                 # 디버그 정보 출력
-                print(f"Debug: Processing {class_name} image {idx+1}/{len(images)}")
+                print(f"Debug: Processing {class_name} image {idx+1}/{len(class_images)}")
                 print(f"  true_class: {image_info['true_class']}")
                 print(f"  pred_class: {image_info['pred_class']}")
-                print(f"  true_label: {image_info['true_label']}")
-                print(f"  pred_label: {image_info['pred_label']}")
+                print(f"  is_correct: {image_info['is_correct']}")
+                print(f"  confidence: {image_info['confidence']:.3f}")
                 
                 # GradCAM 생성 - true_class를 전달
                 visualization, predicted_class, confidence, original_image, grayscale_cam = generate_gradcam(
                     model, image_info['path'], image_info['true_class'], cfg, str(device)
                 )
                 
-                # 결과 저장 - image_info['pred_class']를 사용하여 올바른 예측 클래스 전달
+                # 올바른/잘못된 분류에 따라 다른 디렉토리에 저장
+                if image_info['is_correct']:
+                    output_dir = correct_output_dir
+                    correct_images += 1
+                else:
+                    output_dir = incorrect_output_dir
+                    incorrect_images += 1
+                
+                # 결과 저장
                 output_path = save_gradcam_results(
                     visualization, original_image, grayscale_cam, image_info['pred_class'], 
-                    confidence, image_info['true_class'], image_info['path'], class_output_dir, idx, cfg, image_info['patient_id']
+                    image_info['confidence'], image_info['true_class'], image_info['path'], 
+                    output_dir, idx, cfg, image_info['patient_id'], image_info['is_correct']
                 )
                 
                 total_images += 1
@@ -594,20 +636,44 @@ def main():
     
     print(f"\n분석 완료!")
     print(f"총 처리된 이미지 수: {total_images}개")
+    print(f"올바르게 분류된 이미지: {correct_images}개")
+    print(f"잘못 분류된 이미지: {incorrect_images}개")
     print(f"결과 저장 위치: {args.output_dir}")
     
     # 결과 요약 저장
     summary = {
         'total_images': total_images,
-        'class_images': {class_name: len(correct_images[class_name]) for class_name in class_names},
+        'correct_images': correct_images,
+        'incorrect_images': incorrect_images,
+        'accuracy': correct_images / total_images * 100 if total_images > 0 else 0,
+        'class_summary': {},
         'output_dir': args.output_dir
     }
+    
+    # 클래스별 요약 정보
+    for class_name in class_names:
+        class_images = [img for img in all_test_images if img['true_class'] == class_name]
+        class_correct = sum(1 for img in class_images if img['is_correct'])
+        class_total = len(class_images)
+        summary['class_summary'][class_name] = {
+            'total': class_total,
+            'correct': class_correct,
+            'incorrect': class_total - class_correct,
+            'accuracy': class_correct / class_total * 100 if class_total > 0 else 0
+        }
     
     summary_path = os.path.join(args.output_dir, 'summary.json')
     with open(summary_path, 'w') as f:
         json.dump(summary, f, indent=2)
     
     print(f"요약 정보가 {summary_path}에 저장되었습니다.")
+    
+    # 클래스별 결과 요약 출력
+    print(f"\n=== 클래스별 결과 요약 ===")
+    for class_name, class_info in summary['class_summary'].items():
+        print(f"{class_name.upper()}: {class_info['correct']}/{class_info['total']} ({class_info['accuracy']:.2f}%)")
+    print(f"전체: {correct_images}/{total_images} ({summary['accuracy']:.2f}%)")
+    print("===========================")
 
 if __name__ == '__main__':
     main() 

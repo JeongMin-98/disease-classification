@@ -10,6 +10,7 @@ from torchvision import transforms
 from utils.transform import get_basic_transforms
 # from utils.transform import get_augmentation_transforms, fill_patch_grid, fill_and_pad_patch_grid, get_patch_transform
 from utils.adaptive_preprocessing import create_clahe_transform, create_adaptive_transform
+from utils.background_removal import process_image, config_to_bg_removal_config
 import cv2
 from tqdm import tqdm
 import albumentations as A
@@ -44,6 +45,7 @@ class MedicalImageDataset(BaseDataset):
         self.data = []
         self.augment = cfg.DATASET.AUGMENT
         self.is_train = is_train
+        self.cfg = cfg  # config 객체 저장
         
         # transform 결정: 직접 지정된 transform이 있으면 사용, 없으면 cfg에서 결정
         if transform is not None:
@@ -138,8 +140,32 @@ class MedicalImageDataset(BaseDataset):
                     x_min, y_min, x_max, y_max = map(int, bbox)
                     image = image.crop((x_min, y_min, x_max, y_max))
             
+            # 배경 제거 적용 (config에서 활성화된 경우)
+            if hasattr(self, 'cfg') and self.cfg.DATASET.USE_BACKGROUND_REMOVAL:
+                try:
+                    # PIL Image를 numpy array로 변환
+                    img_array = np.array(image)
+                    
+                    # 배경 제거 설정 가져오기
+                    bg_config = config_to_bg_removal_config(self.cfg)
+                    
+                    # 배경 제거 적용 (임시 파일 없이 메모리에서 처리)
+                    mask = self._compute_background_mask(img_array, bg_config)
+                    img_array = self._apply_background_mask(img_array, mask, bg_config)
+                    
+                    # numpy array를 다시 PIL Image로 변환
+                    image = Image.fromarray(img_array.astype(np.uint8))
+                    
+                except Exception as e:
+                    logger.warning(f"Background removal failed for {file_path}: {e}")
+                    # 배경 제거 실패 시 원본 이미지 사용
+            
             # 전처리 적용
-            processed_image = self.transform(image)
+            if self.transform is not None:
+                processed_image = self.transform(image)
+            else:
+                # transform이 None인 경우 기본 변환 적용
+                processed_image = torch.from_numpy(np.array(image)).float()
             
             return {
                 'patient_id': record['patient_id'],
@@ -195,6 +221,28 @@ class MedicalImageDataset(BaseDataset):
             print(f"  {class_name}: {count}")
         
         return class_counts
+
+    def _compute_background_mask(self, img_array: np.ndarray, bg_config) -> np.ndarray:
+        """배경 마스크를 계산합니다."""
+        from utils.background_removal import compute_mask
+        
+        # 그레이스케일 변환 (이미 그레이스케일이지만 확실히 하기 위해)
+        if len(img_array.shape) == 3:
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img_array
+            
+        # 마스크 계산
+        mask = compute_mask(gray, bg_config)
+        return mask
+    
+    def _apply_background_mask(self, img_array: np.ndarray, mask: np.ndarray, bg_config) -> np.ndarray:
+        """배경 마스크를 적용합니다."""
+        from utils.background_removal import apply_mask_and_optionally_crop
+        
+        # 마스크 적용
+        result, _ = apply_mask_and_optionally_crop(img_array, mask, bg_config)
+        return result
 
     def get_labels(self):
         """

@@ -107,6 +107,21 @@ _C.DATASET.ADAPTIVE_THRESHOLD_UPPER = 70
 _C.DATASET.ADAPTIVE_ALPHA = 0.01
 _C.DATASET.ADAPTIVE_THRESHOLD = True
 
+# 배경 제거 설정
+_C.DATASET.USE_BACKGROUND_REMOVAL = False  # 배경 제거 사용 여부
+_C.DATASET.BG_REMOVAL = CN()
+_C.DATASET.BG_REMOVAL.METHOD = 'fixed'  # "fixed" | "otsu" | "percentile"
+_C.DATASET.BG_REMOVAL.FIXED_THRESH = 10  # fixed일 때 임계값(0~255 스케일 기준)
+_C.DATASET.BG_REMOVAL.PERCENTILE = 2.0  # percentile일 때 하위 % (0~100)
+_C.DATASET.BG_REMOVAL.MORPH_KERNEL = 5  # 형태학 커널 크기(홀수)
+_C.DATASET.BG_REMOVAL.KEEP_LARGEST_ONLY = True  # 가장 큰 연결 성분만 유지
+_C.DATASET.BG_REMOVAL.TIGHT_CROP = False  # 마스크 bbox로 크롭
+_C.DATASET.BG_REMOVAL.FILL_VALUE = 0  # 배경 채울 값 (보통 0)
+_C.DATASET.BG_REMOVAL.MIN_OBJECT_AREA = 5000  # 너무 작은 성분 제거(픽셀)
+_C.DATASET.BG_REMOVAL.NORMALIZE_TO_UINT8 = True  # 저장 전 8-bit로 정규화(시각화/학습 용이)
+_C.DATASET.BG_REMOVAL.SAVE_ORIGINAL = True  # 원본 이미지도 함께 저장 (비교용)
+_C.DATASET.BG_REMOVAL.OUTPUT_SUFFIX = '_bg_removed'  # 배경 제거된 이미지 파일명 접미사
+
 _C.KFOLD = CN()
 _C.KFOLD.USE_KFOLD = True
 _C.KFOLD.KFOLD_SIZE = 7
@@ -142,7 +157,7 @@ _C.TRAIN.SCHEDULER = 'ReduceLROnPlateau'
 _C.TRAIN.MODE = 'min'
 _C.TRAIN.factor = 0.5
 _C.TRAIN.PATIENCE = 5
-
+_C.TRAIN.MIN_EPOCHS = 25
 _C.TRAIN.BEGIN_EPOCH = 0
 _C.TRAIN.END_EPOCH = 140
 

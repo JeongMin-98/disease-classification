@@ -13,10 +13,21 @@ class OriginalTrainer(BaseTrainer):
     def __init__(self, cfg, model, device, output_dir):
         super().__init__(cfg, model, device, output_dir)
         self.is_binary = len(cfg.DATASET.INCLUDE_CLASSES) == 2
-    
+        self.wandb_project_name = None
+    def set_wandb_project(self, project_name: str):
+        """
+        wandb 프로젝트명을 외부에서 설정할 수 있도록 하는 메서드
+        """
+        self.wandb_project_name = project_name
+
     def _get_wandb_project(self) -> str:
-        """WandB 프로젝트명 반환"""
+        """
+        wandb 프로젝트명 반환 (외부에서 지정된 경우 우선, 없으면 기본값)
+        """
+        if self.wandb_project_name is not None:
+            return self.wandb_project_name
         return "medical-classification-original"
+    
     
     def _prepare_batch(self, batch) -> Tuple[torch.Tensor, torch.Tensor]:
         """배치 데이터 준비 - MedicalImageDataset용"""

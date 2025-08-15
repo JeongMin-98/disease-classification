@@ -176,11 +176,16 @@ def main(args):
         logger.info("=== 테스트 데이터 배치 분포 확인 ===")
         analyze_batch_distribution(test_loader, test_set, num_batches=3, logger=logger)
 
-    # 모델 생성 (VGG19)
+    # 모델 생성 (config에서 모델명 가져오기)
+    model_name = getattr(cfg.MODEL, 'NAME', 'VGG19')  # 기본값은 VGG19
+    pretrained = getattr(cfg.MODEL, 'PRETRAINED', True)
     freeze_layers = getattr(cfg.MODEL, 'FREEZE_LAYERS', None)
+    
+    logger.info(f"Creating model: {model_name}")
     if freeze_layers:
         logger.info(f"Freezing layers: {freeze_layers}")
-    model = create('VGG19', Target_Classes=target_classes, pretrained=True, freeze_layers=freeze_layers)
+    
+    model = create(model_name, Target_Classes=target_classes, pretrained=pretrained, freeze_layers=freeze_layers)
     model = model.to(device)
 
     trainer = OriginalTrainer(cfg, model, device, cfg.OUTPUT_DIR)
@@ -190,11 +195,18 @@ def main(args):
     scheduler = getattr(cfg.TRAIN, 'SCHEDULER', None)
     scheduler_tag = scheduler if scheduler else 'none'
     optimizer = getattr(cfg.TRAIN, 'OPTIMIZER', None)
-    model_name = 'VGG19'  # 현재 모델이 고정되어 있으므로
     dataset_target_class = ','.join(target_classes) if target_classes else 'all'
     dataset_type = cfg.DATASET.TYPE
-    run_name = f"{model_name}_opt-{optimizer}_sch-{scheduler}_lr-{lr}_cls-{dataset_target_class}_type-{dataset_type}"
-    tags = [model_name, optimizer, scheduler_tag, f"lr:{lr}", f"cls:{dataset_target_class}", f"type:{dataset_type}"]
+    image_size = cfg.DATASET.IMAGE_SIZE
+    if isinstance(image_size, (list, tuple)):
+        if len(image_size) == 2:
+            image_size = f"{image_size[0]}x{image_size[1]}"
+        else:
+            image_size = str(image_size)
+    else:
+        image_size = str(image_size)
+    run_name = f"{model_name}_opt-{optimizer}_sch-{scheduler}_lr-{lr}_cls-{dataset_target_class}_type-{dataset_type}_size-{image_size}"
+    tags = [model_name, optimizer, scheduler_tag, f"lr:{lr}", f"cls:{dataset_target_class}", f"type:{dataset_type}", f"size:{image_size}"]
 
     trainer.init_wandb(run_name, tags)
 

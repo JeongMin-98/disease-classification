@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import logging
 from torch.utils.data import Subset
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 
 
 def set_seed(seed):
@@ -20,7 +20,7 @@ def set_seed(seed):
 def balance_dataset(dataset, min_ratio=1, max_ratio=1.05, target_count_per_class=None):
     """
     Balance the dataset by ensuring all classes have data within a certain ratio of the smallest class.
-    If target_count_per_class is specified, each class will have exactly that many samples.
+    스마트 균형 맞춤: 224개로 Undersampling 가능하면 그대로, Oversampling 필요시 최소 클래스 수로 맞춤
 
     Args:
         dataset (MedicalImageDataset): The dataset to balance.
@@ -36,18 +36,38 @@ def balance_dataset(dataset, min_ratio=1, max_ratio=1.05, target_count_per_class
     balanced_data = []
     
     if target_count_per_class is not None:
-        # 사용자가 지정한 개수로 각 클래스 제한
-        for class_name, count in class_counts.items():
-            class_data = [record for record in dataset.db_rec if record['label'] == class_name]
-            # 지정된 개수만큼 랜덤 선택 (원본 데이터보다 적으면 중복 허용)
-            if len(class_data) >= target_count_per_class:
+        # 스마트 균형 맞춤 로직
+        min_class_count = min(class_counts.values())
+        
+        # 모든 클래스가 target_count_per_class 이상인지 확인
+        can_undersample = all(count >= target_count_per_class for count in class_counts.values())
+        
+        if can_undersample:
+            # 모든 클래스가 충분하면 224개로 Undersampling
+            print(f"[balance_dataset] 모든 클래스가 {target_count_per_class}개 이상이므로 Undersampling 진행")
+            for class_name, count in class_counts.items():
+                class_data = [record for record in dataset.db_rec if record['label'] == class_name]
                 selected_data = random.sample(class_data, target_count_per_class)
-            else:
-                # 원본 데이터보다 적으면 중복해서 채움
-                selected_data = random.choices(class_data, k=target_count_per_class)
-            balanced_data.extend(selected_data)
+                balanced_data.extend(selected_data)
+                print(f"[balance_dataset] {class_name}: {len(selected_data)}개 Undersampling 완료 (원본 {len(class_data)})")
+        else:
+            # 일부 클래스가 부족하면 최소 클래스 수로 맞춤
+            print(f"[balance_dataset] 일부 클래스가 {target_count_per_class}개 미만이므로 최소 클래스 수({min_class_count}개)로 맞춤")
+            for class_name, count in class_counts.items():
+                class_data = [record for record in dataset.db_rec if record['label'] == class_name]
+                if count > min_class_count:
+                    # 다수 클래스: 최소 클래스 수에 맞춰 Undersampling
+                    scale_factor = random.uniform(min_ratio, max_ratio)
+                    target_count = int(min_class_count * scale_factor)
+                    selected_data = random.choices(class_data, k=target_count)
+                else:
+                    # 소수 클래스: 원본 그대로 유지
+                    target_count = count
+                    selected_data = class_data
+                balanced_data.extend(selected_data)
+                print(f"[balance_dataset] {class_name}: {len(selected_data)}개 샘플링 완료 (원본 {len(class_data)})")
     else:
-        # 기존 로직: 최소 클래스 기준으로 균형 맞추기
+        # 기존 로직: 최소 클래스 수 기준으로 균형 맞추기
         min_class_count = min(class_counts.values())
         for class_name, count in class_counts.items():
             class_data = [record for record in dataset.db_rec if record['label'] == class_name]
@@ -374,4 +394,101 @@ class EarlyStopping:
         if model is not None:
             self.best_state = model.state_dict().copy()
         self.val_loss_min = val_loss
+
+
+def verify_fold_class_distribution(fold_splits, dataset, logger):
+    """
+    각 fold의 클래스 분포를 검증하여 균등 분배가 되었는지 확인합니다.
+    """
+    if logger is None:
+        logger = logging.getLogger("fold_verification")
+    
+    logger.info("=== Fold별 클래스 분포 검증 ===")
+    
+    if not hasattr(dataset, 'db_rec'):
+        logger.warning("dataset.db_rec가 없어 클래스 분포 검증을 건너뜁니다.")
+        return
+    
+    # 클래스별 전체 샘플 수 계산
+    all_labels = [dataset.db_rec[i]['label'] for i in range(len(dataset))]
+    unique_classes = list(set(all_labels))
+    total_per_class = {cls: all_labels.count(cls) for cls in unique_classes}
+    
+    logger.info(f"전체 데이터 클래스별 샘플 수: {total_per_class}")
+    
+    for fold_info in fold_splits:
+        fold_idx = fold_info['fold']
+        
+        # 각 fold의 train/val/test에서 클래스별 샘플 수 계산
+        train_labels = [dataset.db_rec[i]['label'] for i in fold_info['train_indices']]
+        val_labels = [dataset.db_rec[i]['label'] for i in fold_info['val_indices']]
+        test_labels = [dataset.db_rec[i]['label'] for i in fold_info['test_indices']]
+        
+        train_per_class = {cls: train_labels.count(cls) for cls in unique_classes}
+        val_per_class = {cls: val_labels.count(cls) for cls in unique_classes}
+        test_per_class = {cls: test_labels.count(cls) for cls in unique_classes}
+        
+        logger.info(f"Fold {fold_idx}:")
+        logger.info(f"  Train: {train_per_class}")
+        logger.info(f"  Val:   {val_per_class}")
+        logger.info(f"  Test:  {test_per_class}")
+        
+        # 균등 분배 검증
+        train_balanced = len(set(train_per_class.values())) <= 1
+        val_balanced = len(set(val_per_class.values())) <= 1
+        test_balanced = len(set(test_per_class.values())) <= 1
+        
+        if train_balanced and val_balanced and test_balanced:
+            logger.info(f"  ✓ Fold {fold_idx}: 모든 분할에서 균등 분배 확인")
+        else:
+            logger.warning(f"  ⚠ Fold {fold_idx}: 일부 분할에서 불균등 분배 발견")
+    
+    logger.info("=" * 50)
+
+
+def create_kfold_splits(dataset, n_splits=7, random_state=42):
+    """
+    K-fold 교차 검증을 위한 데이터 분할을 생성합니다.
+    각 fold에서 서로 다른 test set을 사용하며, 모든 데이터가 한 번씩 test set이 됩니다.
+    StratifiedKFold를 사용하여 각 fold에서 클래스별 균등 분배를 보장합니다.
+    """
+    # 전체 데이터셋의 인덱스와 라벨
+    all_indices = list(range(len(dataset)))
+    
+    # 라벨 정보 추출 (dataset.db_rec에서)
+    if hasattr(dataset, 'db_rec'):
+        labels = [dataset.db_rec[i]['label'] for i in all_indices]
+    else:
+        # db_rec가 없는 경우 기본 라벨 사용
+        labels = [0] * len(all_indices)
+    
+    # StratifiedKFold 사용하여 클래스별 균등 분배 보장
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    
+    fold_splits = []
+    
+    for fold_idx, (train_val_indices, test_indices) in enumerate(skf.split(all_indices, labels)):
+        # train_val_indices를 다시 train과 val로 분할
+        # val 비율을 15%로 맞춤 (전체 데이터 기준)
+        val_ratio = 0.15 / (0.7 + 0.15)  # 약 0.176
+        
+        # train_val_indices의 라벨 추출
+        train_val_labels = [labels[i] for i in train_val_indices]
+        
+        # train과 val도 stratified split으로 분할
+        train_indices, val_indices = train_test_split(
+            train_val_indices, 
+            test_size=val_ratio,
+            random_state=random_state,
+            stratify=train_val_labels
+        )
+        
+        fold_splits.append({
+            'fold': fold_idx,
+            'train_indices': train_indices,
+            'val_indices': val_indices,
+            'test_indices': test_indices
+        })
+    
+    return fold_splits
 
