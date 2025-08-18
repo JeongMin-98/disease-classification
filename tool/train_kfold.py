@@ -252,6 +252,7 @@ def main(args):
         # cfg 파일의 AUGMENT 설정을 사용하여 augmentation 제어
         use_augment = getattr(cfg.DATASET, 'AUGMENT', True)
         logger.info(f"Fold {fold_idx}: Augmentation 사용 여부: {use_augment}")
+
         
         # Train용과 Val/Test용을 분리하여 생성
         if use_augment:

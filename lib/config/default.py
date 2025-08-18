@@ -122,6 +122,21 @@ _C.DATASET.BG_REMOVAL.NORMALIZE_TO_UINT8 = True  # 저장 전 8-bit로 정규화
 _C.DATASET.BG_REMOVAL.SAVE_ORIGINAL = True  # 원본 이미지도 함께 저장 (비교용)
 _C.DATASET.BG_REMOVAL.OUTPUT_SUFFIX = '_bg_removed'  # 배경 제거된 이미지 파일명 접미사
 
+# HSV 기반 배경제거 이미지 사용 설정
+_C.DATASET.USE_BACKGROUND_REMOVED = False  # 배경제거 사용 여부
+_C.DATASET.BACKGROUND_REMOVED_TYPE = 'folder'  # 'folder': 폴더에서 로드, 'hsv': 실시간 HSV 배경제거
+_C.DATASET.BACKGROUND_REMOVED_DIR = ''  # 배경제거된 이미지 폴더 경로 (BACKGROUND_REMOVED_TYPE='folder'일 때만)
+
+# HSV 실시간 배경제거 설정 (BACKGROUND_REMOVED_TYPE='hsv'일 때)
+_C.DATASET.HSV_BG_REMOVAL = CN()
+_C.DATASET.HSV_BG_REMOVAL.V_THRESHOLD = 50  # HSV V 채널 임계값
+_C.DATASET.HSV_BG_REMOVAL.PROTECT_SKIN = True  # 피부 영역 보호
+_C.DATASET.HSV_BG_REMOVAL.PROTECT_BONE = True  # 뼈/관절 영역 보호
+_C.DATASET.HSV_BG_REMOVAL.MORPH_KERNEL = 5  # 형태학 커널 크기
+_C.DATASET.HSV_BG_REMOVAL.KEEP_LARGEST_ONLY = False  # 가장 큰 연결 성분만 유지
+_C.DATASET.HSV_BG_REMOVAL.TIGHT_CROP = False  # 타이트 크롭
+_C.DATASET.HSV_BG_REMOVAL.MIN_OBJECT_AREA = 5000  # 최소 객체 면적
+
 _C.KFOLD = CN()
 _C.KFOLD.USE_KFOLD = True
 _C.KFOLD.KFOLD_SIZE = 7

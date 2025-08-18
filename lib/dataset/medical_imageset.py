@@ -125,6 +125,42 @@ class MedicalImageDataset(BaseDataset):
         try:
             file_path = record['file_path']
             
+            # HSV 배경제거 이미지 사용 설정이 있는 경우
+            if hasattr(self.cfg.DATASET, 'USE_BACKGROUND_REMOVED') and self.cfg.DATASET.USE_BACKGROUND_REMOVED:
+                bg_removed_type = getattr(self.cfg.DATASET, 'BACKGROUND_REMOVED_TYPE', 'folder')
+                
+                if bg_removed_type == 'folder':
+                    # 기존 방식: 폴더에서 배경제거된 이미지 로드
+                    bg_removed_dir = getattr(self.cfg.DATASET, 'BACKGROUND_REMOVED_DIR', '')
+                    
+                    if bg_removed_dir:
+                        # 원본 파일명에서 patient_id 추출
+                        file_name = os.path.basename(file_path)
+                        name_without_ext = os.path.splitext(file_name)[0]
+                        
+                        # 배경제거 이미지 파일명 생성 (예: CAUHRA00802_bg_removed.jpg)
+                        bg_removed_filename = f"{name_without_ext}_bg_removed.jpg"
+                        
+                        # 클래스명 가져오기
+                        class_name = record.get('class', record.get('label'))
+                        if isinstance(class_name, int):
+                            # 숫자 레이블을 클래스명으로 변환
+                            class_name = self.idx_to_label.get(class_name, 'unknown')
+                        
+                        # 배경제거 이미지 경로 생성
+                        bg_removed_path = os.path.join(bg_removed_dir, class_name, bg_removed_filename)
+                        
+                        # 배경제거 이미지가 존재하면 사용
+                        if os.path.exists(bg_removed_path):
+                            file_path = bg_removed_path
+                            logger.debug(f"Using background removed image: {bg_removed_path}")
+                        else:
+                            logger.warning(f"Background removed image not found: {bg_removed_path}, using original")
+                
+                elif bg_removed_type == 'hsv':
+                    # HSV 실시간 배경제거는 이미지 로드 후에 적용 (아래에서 처리)
+                    pass
+            
             if not os.path.exists(file_path):
                 logger.warning(f"File not found: {file_path}")
                 return None
@@ -140,8 +176,20 @@ class MedicalImageDataset(BaseDataset):
                     x_min, y_min, x_max, y_max = map(int, bbox)
                     image = image.crop((x_min, y_min, x_max, y_max))
             
-            # 배경 제거 적용 (config에서 활성화된 경우)
-            if hasattr(self, 'cfg') and self.cfg.DATASET.USE_BACKGROUND_REMOVAL:
+            # HSV 실시간 배경제거 적용
+            if (hasattr(self.cfg.DATASET, 'USE_BACKGROUND_REMOVED') and 
+                self.cfg.DATASET.USE_BACKGROUND_REMOVED and
+                getattr(self.cfg.DATASET, 'BACKGROUND_REMOVED_TYPE', 'folder') == 'hsv'):
+                try:
+                    # HSV 배경제거 적용
+                    image = self._apply_hsv_background_removal(image)
+                except Exception as e:
+                    logger.warning(f"HSV background removal failed for {file_path}: {e}")
+                    # 배경 제거 실패 시 원본 이미지 사용
+            
+            # 기존 실시간 배경 제거 적용 (config에서 활성화된 경우, 단 USE_BACKGROUND_REMOVED가 False일 때만)
+            elif (hasattr(self, 'cfg') and getattr(self.cfg.DATASET, 'USE_BACKGROUND_REMOVAL', False) and 
+                  not getattr(self.cfg.DATASET, 'USE_BACKGROUND_REMOVED', False)):
                 try:
                     # PIL Image를 numpy array로 변환
                     img_array = np.array(image)
@@ -284,6 +332,43 @@ class MedicalImageDataset(BaseDataset):
             class_name = self.idx_to_label[record['label']]
             distribution[class_name] = distribution.get(class_name, 0) + 1
         return distribution
+    
+    def _apply_hsv_background_removal(self, image):
+        """
+        HSV 기반 배경제거를 PIL 이미지에 적용합니다.
+        
+        Args:
+            image: PIL Image 객체
+            
+        Returns:
+            PIL Image: 배경제거가 적용된 이미지
+        """
+        from utils.background_removal import apply_hsv_background_removal
+        
+        # PIL Image를 numpy array로 변환
+        img_array = np.array(image)
+        
+        # HSV 배경제거 설정 가져오기
+        hsv_config = self.cfg.DATASET.HSV_BG_REMOVAL
+        v_threshold = getattr(hsv_config, 'V_THRESHOLD', 50)
+        protect_skin = getattr(hsv_config, 'PROTECT_SKIN', True)
+        protect_bone = getattr(hsv_config, 'PROTECT_BONE', True)
+        fill_value = 0
+        
+        # HSV 배경제거 적용
+        result_rgb = apply_hsv_background_removal(
+            img_array, 
+            thresh=v_threshold,
+            fill_value=fill_value,
+            protect_skin=protect_skin,
+            protect_bone=protect_bone
+        )
+        
+        # RGB numpy array를 PIL Image로 변환 (grayscale로)
+        result_gray = cv2.cvtColor(result_rgb, cv2.COLOR_RGB2GRAY)
+        result_image = Image.fromarray(result_gray)
+        
+        return result_image
 
 
 
