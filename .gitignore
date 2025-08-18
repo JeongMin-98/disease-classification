@@ -204,3 +204,7 @@ credentials.json
 
 batch_gradcam_results/
 inference_cam_results/
+cam_comparison_results/
+cam_comparison_hsvmodel/
+cam_comparison_hsv_protect/
+cam_comparison_hsv_protect_1024/
