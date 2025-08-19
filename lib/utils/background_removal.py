@@ -61,46 +61,37 @@ def load_image_any(path: str) -> np.ndarray:
     # 채널 처리는 이제 compute_mask에서 처리
     return img
 
-def compute_mask_hsv_value(img: np.ndarray, thresh: int, protect_skin: bool = True, protect_bone: bool = True) -> np.ndarray:
+def create_bone_protection_mask(hsv: np.ndarray, v_channel: np.ndarray) -> np.ndarray:
     """
-    HSV 색상 공간의 V(Value) 채널 기반으로 마스크 생성.
-    V 값이 thresh 이하인 픽셀들을 배경으로 간주하되, 피부/관절 영역은 보호.
+    관절/뼈 구조(높은 밝기값)를 보호하는 마스크를 생성합니다.
     """
-    # 입력이 그레이스케일인 경우 RGB로 변환
-    if img.ndim == 2:
-        img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    else:
-        img_bgr = img.copy()
+    h_channel = hsv[:, :, 0]
+    s_channel = hsv[:, :, 1]
     
-    # BGR to HSV 변환
-    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    # 뼈/관절 영역 특성: 높은 밝기값, 낮은 채도
+    # X-ray에서 뼈는 밝게 나타남
+    high_brightness = np.where(v_channel >= 180, 255, 0).astype(np.uint8)
+    low_saturation = np.where(s_channel <= 50, 255, 0).astype(np.uint8)
     
-    # HSV 각 채널 추출
-    h_channel = hsv[:, :, 0]  # Hue
-    s_channel = hsv[:, :, 1]  # Saturation
-    v_channel = hsv[:, :, 2]  # Value
+    # 밝고 채도가 낮은 영역 (뼈/관절 가능성 높음)
+    bone_mask = cv2.bitwise_and(high_brightness, low_saturation)
     
-    # 기본 V 채널 기반 마스크
-    basic_mask = np.where(v_channel > thresh, 255, 0).astype(np.uint8)
+    # 중간 밝기지만 구조적으로 중요한 영역도 보호
+    # 관절 부분은 중간 밝기일 수 있음
+    medium_brightness = np.where((v_channel >= 100) & (v_channel < 180), 255, 0).astype(np.uint8)
+    very_low_saturation = np.where(s_channel <= 30, 255, 0).astype(np.uint8)
     
-    # 보호 마스크 초기화
-    protection_mask = np.zeros_like(basic_mask)
+    # 중간 밝기 + 매우 낮은 채도 영역
+    joint_mask = cv2.bitwise_and(medium_brightness, very_low_saturation)
     
-    # 피부 톤 보호 마스크 생성 (옵션에 따라)
-    if protect_skin:
-        skin_mask = create_skin_protection_mask(hsv)
-        protection_mask = cv2.bitwise_or(protection_mask, skin_mask)
+    # 뼈와 관절 마스크 통합
+    combined_bone_mask = cv2.bitwise_or(bone_mask, joint_mask)
     
-    # 관절/뼈 구조 보호 마스크 생성 (옵션에 따라)
-    if protect_bone:
-        bone_mask = create_bone_protection_mask(hsv, v_channel)
-        protection_mask = cv2.bitwise_or(protection_mask, bone_mask)
+    # 형태학적 연산으로 연결성 향상
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    combined_bone_mask = cv2.morphologyEx(combined_bone_mask, cv2.MORPH_CLOSE, kernel)
     
-    # 기본 마스크에 보호 영역 추가
-    # 보호 영역은 V 값에 관계없이 전경으로 유지
-    final_mask = cv2.bitwise_or(basic_mask, protection_mask)
-    
-    return final_mask
+    return combined_bone_mask
 
 def create_skin_protection_mask(hsv: np.ndarray) -> np.ndarray:
     """
@@ -149,38 +140,6 @@ def create_skin_protection_mask(hsv: np.ndarray) -> np.ndarray:
     final_skin_mask = cv2.morphologyEx(final_skin_mask, cv2.MORPH_CLOSE, kernel)
     
     return final_skin_mask
-
-def create_bone_protection_mask(hsv: np.ndarray, v_channel: np.ndarray) -> np.ndarray:
-    """
-    관절/뼈 구조(높은 밝기값)를 보호하는 마스크를 생성합니다.
-    """
-    h_channel = hsv[:, :, 0]
-    s_channel = hsv[:, :, 1]
-    
-    # 뼈/관절 영역 특성: 높은 밝기값, 낮은 채도
-    # X-ray에서 뼈는 밝게 나타남
-    high_brightness = np.where(v_channel >= 180, 255, 0).astype(np.uint8)
-    low_saturation = np.where(s_channel <= 50, 255, 0).astype(np.uint8)
-    
-    # 밝고 채도가 낮은 영역 (뼈/관절 가능성 높음)
-    bone_mask = cv2.bitwise_and(high_brightness, low_saturation)
-    
-    # 중간 밝기지만 구조적으로 중요한 영역도 보호
-    # 관절 부분은 중간 밝기일 수 있음
-    medium_brightness = np.where((v_channel >= 100) & (v_channel < 180), 255, 0).astype(np.uint8)
-    very_low_saturation = np.where(s_channel <= 30, 255, 0).astype(np.uint8)
-    
-    # 중간 밝기 + 매우 낮은 채도 영역
-    joint_mask = cv2.bitwise_and(medium_brightness, very_low_saturation)
-    
-    # 뼈와 관절 마스크 통합
-    combined_bone_mask = cv2.bitwise_or(bone_mask, joint_mask)
-    
-    # 형태학적 연산으로 연결성 향상
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    combined_bone_mask = cv2.morphologyEx(combined_bone_mask, cv2.MORPH_CLOSE, kernel)
-    
-    return combined_bone_mask
 
 def compute_mask(gray_or_color: np.ndarray, cfg: BgRemovalConfig) -> np.ndarray:
     """
@@ -291,6 +250,75 @@ def apply_hsv_background_removal(img: np.ndarray, thresh: int, fill_value: int =
     result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
     
     return result_rgb
+
+def compute_mask_hsv_value(img: np.ndarray, thresh: int, protect_skin: bool = True, protect_bone: bool = True) -> np.ndarray:
+    """
+    HSV 색상 공간의 V(Value) 채널 기반으로 마스크 생성.
+    V 값이 thresh 이하인 픽셀들을 배경으로 간주하되, 피부/관절 영역은 보호.
+    """
+    # 입력이 그레이스케일인 경우 RGB로 변환
+    if img.ndim == 2:
+        img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    else:
+        img_bgr = img.copy()
+    
+    # BGR to HSV 변환
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    
+    # HSV 각 채널 추출
+    h_channel = hsv[:, :, 0]  # Hue
+    s_channel = hsv[:, :, 1]  # Saturation
+    v_channel = hsv[:, :, 2]  # Value
+    
+    # 기본 V 채널 기반 마스크
+    basic_mask = np.where(v_channel > thresh, 255, 0).astype(np.uint8)
+    
+    # 보호 마스크 초기화
+    protection_mask = np.zeros_like(basic_mask)
+    
+    # 피부 톤 보호 마스크 생성 (옵션에 따라)
+    if protect_skin:
+        skin_mask = create_skin_protection_mask(hsv)
+        protection_mask = cv2.bitwise_or(protection_mask, skin_mask)
+    
+    # 관절/뼈 구조 보호 마스크 생성 (옵션에 따라)
+    if protect_bone:
+        bone_mask = create_bone_protection_mask(hsv, v_channel)
+        protection_mask = cv2.bitwise_or(protection_mask, bone_mask)
+    
+    # 기본 마스크에 보호 영역 추가
+    # 보호 영역은 V 값에 관계없이 전경으로 유지
+    final_mask = cv2.bitwise_or(basic_mask, protection_mask)
+    
+    return final_mask
+
+def remove_all_background_regions(mask: np.ndarray, connectivity: int = 4) -> np.ndarray:
+    """
+    모든 배경 영역을 제거하여 전경만 남깁니다.
+    연결 성분 분석을 사용하여 배경과 전경을 정확히 구분합니다.
+    """
+    # 연결 성분 분석
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=connectivity)
+    
+    # 배경 라벨 찾기 (보통 라벨 0이 배경)
+    # 하지만 실제로는 가장 큰 영역이 배경일 수 있음
+    background_label = 0
+    max_area = 0
+    
+    for lbl in range(num_labels):
+        area = stats[lbl, cv2.CC_STAT_AREA]
+        if area > max_area:
+            max_area = area
+            background_label = lbl
+    
+    # 배경 라벨을 0으로 설정하고 나머지는 전경으로
+    result_mask = np.zeros_like(mask)
+    
+    for lbl in range(num_labels):
+        if lbl != background_label:  # 배경이 아닌 모든 라벨을 전경으로
+            result_mask[labels == lbl] = 255
+    
+    return result_mask
 
 def process_image(
     in_path: str,
