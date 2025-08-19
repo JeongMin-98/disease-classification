@@ -35,6 +35,13 @@ from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
+# wandb 관련 유틸리티 import
+from lib.utils.wandb_tool import (
+    get_model_path, 
+    get_config_path, 
+    WandbDownloader
+)
+
 def apply_background_removal(image_path, args):
     """이미지에 배경 제거를 적용합니다."""
     try:
@@ -659,8 +666,10 @@ def process_gradcam_for_images(model, dataset, image_indices, cfg, device, outpu
 
 def main():
     parser = argparse.ArgumentParser(description='6번 fold의 test indices를 사용해서 모델 성능 평가 및 GradCAM 생성')
-    parser.add_argument('--cfg', type=str, required=True,
+    parser.add_argument('--cfg', type=str, default=None,
                        help='설정 파일 경로')
+    parser.add_argument('--config_run_id', type=str, default=None,
+                       help='Config 파일의 wandb run ID (로컬 파일이 없을 때 다운로드)')
     parser.add_argument('--fold_number', type=int, default=6,
                        help='분석할 fold 번호 (기본값: 6)')
     parser.add_argument('--output_dir', type=str, default='fold6_analysis_results',
@@ -671,6 +680,20 @@ def main():
                        help='랜덤 시드')
     parser.add_argument('--batch_size', type=int, default=16,
                        help='배치 크기 (기본값: 16)')
+    
+    # VGG 모델 관련 인자
+    parser.add_argument('--vgg_model_path', type=str, default=None,
+                       help='VGG 모델 파일 경로 (로컬)')
+    parser.add_argument('--vgg_run_id', type=str, default=None,
+                       help='VGG 모델의 wandb run ID (로컬 파일이 없을 때 다운로드)')
+    
+    # HSV 모델 관련 인자
+    parser.add_argument('--hsv_model_path', type=str, default=None,
+                       help='HSV 모델 파일 경로 (로컬)')
+    parser.add_argument('--hsv_run_id', type=str, default=None,
+                       help='HSV 모델의 wandb run ID (로컬 파일이 없을 때 다운로드)')
+    
+    # 배경 제거 관련 인자
     parser.add_argument('--bg_method', type=str, default='hsv_value',
                        help='배경 제거 방법 (fixed/otsu/percentile/hsv_value)')
     parser.add_argument('--bg_thresh', type=int, default=3,
@@ -699,6 +722,26 @@ def main():
     random.seed(args.seed)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
+    
+    # config 파일 경로 가져오기
+    if not args.cfg and not args.config_run_id:
+        print("오류: --cfg 또는 --config_run_id 중 하나는 반드시 제공되어야 합니다.")
+        sys.exit(1)
+    
+    try:
+        config_path = get_config_path(
+            args.cfg, 
+            args.config_run_id,
+            download_dir=os.path.join(args.output_dir, "downloaded_configs")
+        )
+        print(f"사용할 config 파일: {config_path}")
+        
+        # config 파일 로드
+        update_config(cfg, config_path)
+        
+    except Exception as e:
+        print(f"Config 파일 로드 실패: {e}")
+        sys.exit(1)
     
     # 설정 업데이트
     update_config(cfg, args)
@@ -819,22 +862,40 @@ def main():
         dataset.balance_dataset(target_count_per_class=target_count)
         print(f"균등화 후 데이터셋 크기: {len(dataset)}")
     
-    # 모델별 best_model.pth 경로 정의
-    model_paths = {
-        'vgg19bn_rgb': 'wandb/run-20250811_020827-uaj8lelt/files/best_model.pth',  # 일반 모델 Fold 6
-        'vgg19bn_hsv': 'wandb/run-20250816_232559-svyp2x77/files/best_model.pth'   # HSV 모델 Fold 0 (가장 성능 좋음)
+    # 모델별 설정 정의
+    model_configs = {
+        'vgg19bn_rgb': {
+            'name': 'VGG19_BN RGB',
+            'model_path': args.vgg_model_path,
+            'run_id': args.vgg_run_id
+        },
+        'vgg19bn_hsv': {
+            'name': 'VGG19_BN HSV',
+            'model_path': args.hsv_model_path,
+            'run_id': args.hsv_run_id
+        }
     }
     
     # 각 모델 처리
     all_results = {}
     
-    for model_name, model_path in model_paths.items():
+    for model_name, config in model_configs.items():
         print(f"\n{'='*60}")
         print(f"{model_name} 모델 처리 중...")
-        print(f"모델 경로: {model_path}")
+        print(f"모델 이름: {config['name']}")
         
-        if not os.path.exists(model_path):
-            print(f"모델 파일을 찾을 수 없습니다: {model_path}")
+        try:
+            # 모델 경로 가져오기 (로컬 또는 wandb에서 다운로드)
+            model_path = get_model_path(
+                model_name, 
+                config['model_path'], 
+                config['run_id'],
+                download_dir=os.path.join(args.output_dir, "downloaded_models")
+            )
+            print(f"사용할 모델 경로: {model_path}")
+        except Exception as e:
+            print(f"모델 경로 설정 실패: {e}")
+            print(f"이 모델은 건너뜁니다.")
             continue
         
         # 모델 로드
@@ -938,12 +999,34 @@ def main():
     print(f"결과 저장 위치: {args.output_dir}")
     print(f"총 처리 시간: {time.time() - start_time:.2f}초")
     print(f"\n사용법:")
-    print(f"  python {sys.argv[0]} --cfg <config.yaml> --fold_number <fold_num> --seed <seed>")
-    print(f"  예시: python {sys.argv[0]} --cfg experiments/config.yaml --fold_number 6 --seed 42")
+    print(f"  python {sys.argv[0]} --fold_number <fold_num> --seed <seed>")
+    print(f"  --cfg <config.yaml> 또는 --config_run_id <run_id>")
+    print(f"  --vgg_model_path <path> 또는 --vgg_run_id <run_id>")
+    print(f"  --hsv_model_path <path> 또는 --hsv_run_id <run_id>")
+    print(f"\n예시:")
+    print(f"  # 모든 파일을 로컬에서 사용:")
+    print(f"  python {sys.argv[0]} --cfg experiments/config.yaml --fold_number 6 --seed 42")
+    print(f"    --vgg_model_path wandb/run-20250811_020827-uaj8lelt/files/best_model.pth")
+    print(f"    --hsv_model_path wandb/run-20250816_232559-svyp2x77/files/best_model.pth")
+    print(f"\n  # 모든 파일을 wandb에서 다운로드:")
+    print(f"  python {sys.argv[0]} --fold_number 6 --seed 42")
+    print(f"    --config_run_id uaj8lelt --vgg_run_id uaj8lelt --hsv_run_id svyp2x77")
+    print(f"\n  # 혼합 사용 (config는 로컬, 모델은 wandb):")
+    print(f"  python {sys.argv[0]} --cfg experiments/config.yaml --fold_number 6 --seed 42")
+    print(f"    --vgg_run_id uaj8lelt --hsv_run_id svyp2x77")
+    print(f"\n  # 혼합 사용 (config는 wandb, 모델은 로컬):")
+    print(f"  python {sys.argv[0]} --fold_number 6 --seed 42")
+    print(f"    --config_run_id uaj8lelt")
+    print(f"    --vgg_model_path local/path/to/vgg_model.pth --hsv_model_path local/path/to/hsv_model.pth")
     print(f"\n주요 변경사항:")
     print(f"  - 폴더 구조: mis/ (오분류), oa/ (정분류 OA), normal/ (정분류 Normal)")
     print(f"  - 이미지명: {patient_id}_{true_class}_{pred_class}_comparison.png")
     print(f"  - 재현성 검증: train_kfold.py와 동일한 fold 분할 확인")
+    print(f"  - wandb 자동 다운로드: 모델 파일이 없으면 run_id로 자동 다운로드")
+    print(f"  - config 자동 다운로드: config 파일이 없으면 run_id로 자동 다운로드")
+    print(f"  - 캐시 시스템: 다운로드된 파일을 재사용하여 중복 다운로드 방지")
+    print(f"  - 파일 무결성 검증: MD5 해시로 파일 손상 여부 확인")
+    print(f"  - 메타데이터 관리: 다운로드된 파일 정보를 JSON으로 관리")
 
 if __name__ == '__main__':
     main()
