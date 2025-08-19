@@ -497,17 +497,18 @@ def process_gradcam_for_images(model, dataset, image_indices, cfg, device, outpu
     target_classes = cfg.DATASET.INCLUDE_CLASSES or cfg.DATASET.TARGET_CLASSES
     class_names = target_classes if target_classes else ['oa', 'normal']
     
-    # 출력 디렉토리 생성 - 단순화된 구조
+    # 출력 디렉토리 생성 - 단순화된 구조 (mis, oa, normal)
     model_output_dir = os.path.join(output_dir, model_name)
     os.makedirs(model_output_dir, exist_ok=True)
     
-    # misclassified 폴더와 클래스별 폴더 생성
-    misclassified_dir = os.path.join(model_output_dir, "misclassified")
-    os.makedirs(misclassified_dir, exist_ok=True)
+    # mis, oa, normal 폴더 생성
+    mis_dir = os.path.join(model_output_dir, "mis")
+    oa_dir = os.path.join(model_output_dir, "oa")
+    normal_dir = os.path.join(model_output_dir, "normal")
     
-    for class_name in class_names:
-        class_dir = os.path.join(model_output_dir, class_name)
-        os.makedirs(class_dir, exist_ok=True)
+    os.makedirs(mis_dir, exist_ok=True)
+    os.makedirs(oa_dir, exist_ok=True)
+    os.makedirs(normal_dir, exist_ok=True)
     
     model.eval()
     processed_count = 0
@@ -557,12 +558,25 @@ def process_gradcam_for_images(model, dataset, image_indices, cfg, device, outpu
                 # 예측 결과 확인
                 original_correct = (original_pred == true_label)
                 
-                # 출력 디렉토리 결정 - 단순화된 구조
+                # 출력 디렉토리 결정 - 단순화된 구조 (mis, oa, normal)
                 if original_correct:
-                    true_class_name = class_names[true_label] if true_label < len(class_names) else str(true_label)
-                    save_dir = os.path.join(model_output_dir, true_class_name)
+                    # target_classes 리스트에서 클래스명 가져오기
+                    if true_label < len(class_names):
+                        true_class_name = class_names[true_label]
+                        if true_class_name.lower() == 'oa':
+                            save_dir = oa_dir
+                        elif true_class_name.lower() == 'normal':
+                            save_dir = normal_dir
+                        else:
+                            # 기타 클래스가 있는 경우 해당 클래스명으로 폴더 생성
+                            other_dir = os.path.join(model_output_dir, true_class_name.lower())
+                            os.makedirs(other_dir, exist_ok=True)
+                            save_dir = other_dir
+                    else:
+                        # 인덱스가 범위를 벗어난 경우 mis 폴더에 저장
+                        save_dir = mis_dir
                 else:
-                    save_dir = misclassified_dir
+                    save_dir = mis_dir
                 
                 # 결과 저장
                 output_path = save_gradcam_comparison(
@@ -736,7 +750,6 @@ def main():
             fold_splits.append({
                 'fold': fold_idx,
                 'train_indices': train_indices,
-                'val_indices': val_indices,
                 'test_indices': test_indices
             })
         
@@ -760,9 +773,36 @@ def main():
     
     test_indices = target_fold['test_indices']
     print(f"Fold {args.fold_number} test indices 수: {len(test_indices)}")
-    print(f"  Train indices: {len(target_fold['train_indices'])}")
-    print(f"  Val indices: {len(target_fold['val_indices'])}")
     print(f"  Test indices: {len(test_indices)}")
+    
+    # 재현성 검증을 위해 indices 출력
+    print(f"Test indices (처음 10개): {test_indices[:10]}")
+    print(f"Test indices (마지막 10개): {test_indices[-10:]}")
+    
+    # 재현성 검증: train_kfold.py와 동일한 결과인지 확인
+    print(f"\n=== 재현성 검증 ===")
+    print(f"현재 시드: {args.seed}")
+    print(f"현재 fold: {args.fold_number}")
+    
+    # 검증용: 동일한 시드로 다시 생성하여 비교
+    verification_splits = create_kfold_splits(temp_dataset, n_splits=kfold_size, random_state=args.seed)
+    verification_fold = None
+    for fold_info in verification_splits:
+        if fold_info['fold'] == args.fold_number:
+            verification_fold = fold_info
+            break
+    
+    if verification_fold is not None:
+        verification_indices = verification_fold['test_indices']
+        indices_match = (test_indices == verification_indices).all()
+        print(f"재생성된 indices와 일치: {'✓' if indices_match else '✗'}")
+        
+        if not indices_match:
+            print("경고: indices가 일치하지 않습니다! 재현성에 문제가 있을 수 있습니다.")
+            print("처리를 중단합니다.")
+            sys.exit(1)
+        else:
+            print("✓ 재현성 검증 통과 - train_kfold.py와 동일한 fold 분할 확인됨")
     
     # 임시 데이터셋 메모리 해제
     del temp_dataset
@@ -852,6 +892,7 @@ def main():
         print(f"  정분류 이미지 GradCAM: {correct_gradcam['processed_count']}개")
         print(f"  오분류 이미지 GradCAM: {incorrect_gradcam['processed_count']}개")
         print(f"  결과 저장 위치: {correct_gradcam['output_dir']}")
+        print(f"  폴더 구조: mis/, oa/, normal/")
         
         # 환자별 통계 출력
         if 'patient_stats' in correct_gradcam:
@@ -899,6 +940,10 @@ def main():
     print(f"\n사용법:")
     print(f"  python {sys.argv[0]} --cfg <config.yaml> --fold_number <fold_num> --seed <seed>")
     print(f"  예시: python {sys.argv[0]} --cfg experiments/config.yaml --fold_number 6 --seed 42")
+    print(f"\n주요 변경사항:")
+    print(f"  - 폴더 구조: mis/ (오분류), oa/ (정분류 OA), normal/ (정분류 Normal)")
+    print(f"  - 이미지명: {patient_id}_{true_class}_{pred_class}_comparison.png")
+    print(f"  - 재현성 검증: train_kfold.py와 동일한 fold 분할 확인")
 
 if __name__ == '__main__':
     main()
