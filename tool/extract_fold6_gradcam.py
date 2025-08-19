@@ -743,6 +743,23 @@ def main():
         print(f"Config 파일 로드 실패: {e}")
         sys.exit(1)
     
+    # wandb 다운로더 초기화 (캐시 시스템 활용)
+    wandb_downloader = WandbDownloader(
+        project_name="jmkim/disease-classification",
+        download_dir=os.path.join(args.output_dir, "downloaded_files")
+    )
+    
+    print(f"wandb 다운로더 초기화 완료: {wandb_downloader.download_dir}")
+    
+    # 기존 다운로드된 파일 목록 확인
+    existing_files = wandb_downloader.list_downloaded_files()
+    if existing_files:
+        print(f"기존 다운로드된 파일 수: {len(existing_files)}")
+        for key, info in existing_files.items():
+            print(f"  - {key}: {info.get('file_path', 'N/A')}")
+    else:
+        print("기존 다운로드된 파일이 없습니다.")
+    
     # 설정 업데이트
     update_config(cfg, args)
     
@@ -885,13 +902,21 @@ def main():
         print(f"모델 이름: {config['name']}")
         
         try:
-            # 모델 경로 가져오기 (로컬 또는 wandb에서 다운로드)
-            model_path = get_model_path(
-                model_name, 
-                config['model_path'], 
-                config['run_id'],
-                download_dir=os.path.join(args.output_dir, "downloaded_models")
-            )
+            # 모델 경로 가져오기 (캐시 시스템 활용)
+            if config['model_path'] and os.path.exists(config['model_path']):
+                model_path = config['model_path']
+                print(f"{model_name} 모델 파일이 로컬에 존재합니다: {model_path}")
+            elif config['run_id']:
+                # wandb에서 다운로드 (캐시 시스템 활용)
+                model_path = wandb_downloader.download_model(
+                    config['run_id'], 
+                    filename="best_model.pth",
+                    force_download=False  # 캐시 우선 사용
+                )
+                print(f"{model_name} 모델을 wandb에서 다운로드했습니다: {model_path}")
+            else:
+                raise ValueError(f"{model_name} 모델의 경로나 run_id가 제공되지 않았습니다.")
+                
             print(f"사용할 모델 경로: {model_path}")
         except Exception as e:
             print(f"모델 경로 설정 실패: {e}")
@@ -1020,13 +1045,19 @@ def main():
     print(f"    --vgg_model_path local/path/to/vgg_model.pth --hsv_model_path local/path/to/hsv_model.pth")
     print(f"\n주요 변경사항:")
     print(f"  - 폴더 구조: mis/ (오분류), oa/ (정분류 OA), normal/ (정분류 Normal)")
-    print(f"  - 이미지명: {patient_id}_true_class_pred_class_comparison.png")
+    print(f"  - 이미지명: patient_id_true_class_pred_class_comparison.png")
     print(f"  - 재현성 검증: train_kfold.py와 동일한 fold 분할 확인")
     print(f"  - wandb 자동 다운로드: 모델 파일이 없으면 run_id로 자동 다운로드")
     print(f"  - config 자동 다운로드: config 파일이 없으면 run_id로 자동 다운로드")
     print(f"  - 캐시 시스템: 다운로드된 파일을 재사용하여 중복 다운로드 방지")
     print(f"  - 파일 무결성 검증: MD5 해시로 파일 손상 여부 확인")
     print(f"  - 메타데이터 관리: 다운로드된 파일 정보를 JSON으로 관리")
+    print(f"\n캐시 관리:")
+    print(f"  - 다운로드된 파일은 {args.output_dir}/downloaded_files/ 에 저장")
+    print(f"  - 메타데이터는 download_metadata.json에 저장")
+    print(f"  - 파일 해시 검증으로 무결성 확인")
+    print(f"  - 중복 다운로드 방지")
+    print(f"  - 강제 재다운로드: WandbDownloader.force_redownload() 사용")
 
 if __name__ == '__main__':
     main()
