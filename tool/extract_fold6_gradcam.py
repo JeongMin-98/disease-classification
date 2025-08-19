@@ -708,11 +708,20 @@ def main():
     print(f"사용 디바이스: {device}")
     print(f"배치 크기: {args.batch_size}")
     
-    # train_kfold.py와 동일한 방식으로 K-fold indices 생성 (검증용)
-    print("K-fold indices 생성 중... (train_kfold.py와 동일한 방식)")
+    # 데이터셋 생성 - train_kfold.py와 동일한 방식
+    print("데이터셋 생성 중...")
+    dataset = MedicalImageDataset(cfg)
+    target_classes = cfg.DATASET.INCLUDE_CLASSES or cfg.DATASET.TARGET_CLASSES
     
-    # MedicalImageDataset 생성 (균등화 전)
-    temp_dataset = MedicalImageDataset(cfg)
+    # train_kfold.py와 동일한 데이터 균등화 적용
+    target_count = getattr(cfg.DATASET, 'TARGET_COUNT_PER_CLASS', None)
+    if target_count:
+        print(f"데이터 균등화 적용: 클래스당 {target_count}개")
+        dataset.balance_dataset(target_count_per_class=target_count)
+        print(f"균등화 후 데이터셋 크기: {len(dataset)}")
+    
+    # train_kfold.py와 동일한 방식으로 K-fold indices 생성 (균등화 후)
+    print("K-fold indices 생성 중... (균등화 후, train_kfold.py와 동일한 방식)")
     
     # train_kfold.py와 동일한 K-fold 분할 함수 사용
     from sklearn.model_selection import StratifiedKFold, train_test_split
@@ -755,9 +764,9 @@ def main():
         
         return fold_splits
     
-    # K-fold 분할 생성 (seed 42로 고정)
+    # K-fold 분할 생성 (균등화 후, seed 42로 고정)
     kfold_size = 7
-    fold_splits = create_kfold_splits(temp_dataset, n_splits=kfold_size, random_state=args.seed)
+    fold_splits = create_kfold_splits(dataset, n_splits=kfold_size, random_state=args.seed)
     
     # 지정된 fold의 test indices 가져오기
     target_fold = None
@@ -785,7 +794,7 @@ def main():
     print(f"현재 fold: {args.fold_number}")
     
     # 검증용: 동일한 시드로 다시 생성하여 비교
-    verification_splits = create_kfold_splits(temp_dataset, n_splits=kfold_size, random_state=args.seed)
+    verification_splits = create_kfold_splits(dataset, n_splits=kfold_size, random_state=args.seed)
     verification_fold = None
     for fold_info in verification_splits:
         if fold_info['fold'] == args.fold_number:
@@ -804,20 +813,11 @@ def main():
         else:
             print("✓ 재현성 검증 통과 - train_kfold.py와 동일한 fold 분할 확인됨")
     
-    # 임시 데이터셋 메모리 해제
-    del temp_dataset
-    
-    # 데이터셋 생성 - train_kfold.py와 동일한 방식
-    print("데이터셋 생성 중...")
-    dataset = MedicalImageDataset(cfg)
-    target_classes = cfg.DATASET.INCLUDE_CLASSES or cfg.DATASET.TARGET_CLASSES
-    
-    # train_kfold.py와 동일한 데이터 균등화 적용
-    target_count = getattr(cfg.DATASET, 'TARGET_COUNT_PER_CLASS', None)
-    if target_count:
-        print(f"데이터 균등화 적용: 클래스당 {target_count}개")
-        dataset.balance_dataset(target_count_per_class=target_count)
-        print(f"균등화 후 데이터셋 크기: {len(dataset)}")
+    print(f"데이터셋 크기: {len(dataset)}")
+    print(f"Test indices 범위: {min(test_indices)} ~ {max(test_indices)}")
+    if max(test_indices) >= len(dataset):
+        print("경고: test indices가 데이터셋 크기를 초과합니다!")
+        sys.exit(1)
     
     # 모델별 best_model.pth 경로 정의
     model_paths = {
@@ -942,7 +942,7 @@ def main():
     print(f"  예시: python {sys.argv[0]} --cfg experiments/config.yaml --fold_number 6 --seed 42")
     print(f"\n주요 변경사항:")
     print(f"  - 폴더 구조: mis/ (오분류), oa/ (정분류 OA), normal/ (정분류 Normal)")
-    print(f"  - 이미지명: {patient_id}_{true_class}_{pred_class}_comparison.png")
+    print(f"  - 이미지명: {patient_id}_true_class_pred_class_comparison.png")
     print(f"  - 재현성 검증: train_kfold.py와 동일한 fold 분할 확인")
 
 if __name__ == '__main__':
